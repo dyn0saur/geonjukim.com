@@ -168,9 +168,7 @@ button {
   font-weight: 900;
   letter-spacing: -5px;
   line-height: 1;
-  opacity: var(--canvas-content-opacity);
   text-shadow: 0 2px rgb(255 255 255 / 38%);
-  transition: opacity 120ms linear;
 }
 
 .scribble-node.is-selected {
