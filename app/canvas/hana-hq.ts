@@ -3,9 +3,95 @@ import {
   type ConnectorNode,
   type PanelNode,
   type PortDefinition,
+  type ProcessorNode,
 } from "./model";
 
 const CONNECTOR_HEIGHT = 86;
+const PROCESSOR_HORIZONTAL_PADDING = 55;
+const PROCESSOR_COLUMN_GAP = 76;
+const PROCESSOR_ICON_SIZE = 170;
+const PROCESSOR_VERTICAL_PADDING = 120;
+const PROCESSOR_ROW_GAP = 150;
+
+type ProcessorPortSpec = Omit<PortDefinition, "offset"> & { row: number };
+
+function estimatedLabelWidth(label: string | undefined) {
+  if (!label) return 0;
+  return [...label].reduce((width, character) => {
+    if (character === " ") return width + 9;
+    if (/[ilI.,()]/.test(character)) return width + 10;
+    if (/[MW]/.test(character)) return width + 25;
+    return width + 18;
+  }, 16);
+}
+
+function processor({
+  id,
+  title,
+  icon,
+  ariaLabel,
+  x,
+  y,
+  rowCount,
+  ports,
+}: {
+  id: string;
+  title: string;
+  icon: string;
+  ariaLabel: string;
+  x: number;
+  y: number;
+  rowCount: number;
+  ports: readonly ProcessorPortSpec[];
+}): ProcessorNode {
+  const inputWidth = Math.max(
+    180,
+    ...ports
+      .filter((port) => port.side === "in")
+      .map((port) => estimatedLabelWidth(port.label)),
+  );
+  const outputWidth = Math.max(
+    180,
+    ...ports
+      .filter((port) => port.side === "out")
+      .map((port) => estimatedLabelWidth(port.label)),
+  );
+  const inputLeft = PROCESSOR_HORIZONTAL_PADDING;
+  const iconCenter =
+    inputLeft + inputWidth + PROCESSOR_COLUMN_GAP + PROCESSOR_ICON_SIZE / 2;
+  const outputLeft =
+    iconCenter + PROCESSOR_ICON_SIZE / 2 + PROCESSOR_COLUMN_GAP;
+  const width = outputLeft + outputWidth + PROCESSOR_HORIZONTAL_PADDING;
+  const height = Math.max(
+    290,
+    PROCESSOR_VERTICAL_PADDING * 2 + (rowCount - 1) * PROCESSOR_ROW_GAP,
+  );
+
+  return {
+    id,
+    kind: "processor",
+    title,
+    icon,
+    ariaLabel,
+    position: { x, y },
+    size: { width, height },
+    layout: {
+      inputLeft,
+      inputWidth,
+      iconCenter,
+      iconSize: PROCESSOR_ICON_SIZE,
+      outputLeft,
+      outputWidth,
+    },
+    ports: ports.map(({ row, ...port }) => ({
+      ...port,
+      offset:
+        rowCount === 1
+          ? 0.5
+          : (PROCESSOR_VERTICAL_PADDING + row * PROCESSOR_ROW_GAP) / height,
+    })),
+  };
+}
 
 function connectorWidth(text: string) {
   return Math.max(210, text.length * 23 + 64);
@@ -17,18 +103,20 @@ function connector({
   x,
   y,
   ports,
+  ariaLabel,
 }: {
   id: string;
   text: string;
   x: number;
   y: number;
   ports: readonly PortDefinition[];
+  ariaLabel?: string;
 }): ConnectorNode {
   return {
     id,
     kind: "connector",
     text,
-    ariaLabel: `${text} 연결 컴포넌트`,
+    ariaLabel: ariaLabel ?? `${text} 연결 컴포넌트`,
     position: { x, y },
     size: { width: connectorWidth(text), height: CONNECTOR_HEIGHT },
     ports,
@@ -105,109 +193,125 @@ export const HANA_HQ_SCENARIO = defineScenario({
       id: "ref-srf",
       text: "Ref. SRF",
       x: 2250,
-      y: 1561,
+      y: 1497,
       ports: bidirectionalConnectorPorts,
     }),
     connector({
       id: "architectural-design",
       text: "Architectural Design",
       x: 2430,
-      y: 1993,
+      y: 1872,
       ports: [{ id: "out", side: "out", offset: 0.5 }],
     }),
-    {
+    processor({
       id: "deconstruct",
-      kind: "processor",
       title: "DECONSTRUCT REF. SURFACE",
       icon: "/assets/hana-hq/icons/deconstruct-ref-surface.png",
       ariaLabel: "Deconstruct Ref. Surface 주요 컴포넌트",
-      position: { x: 3150, y: 1270 },
-      size: { width: 950, height: 1000 },
+      x: 3150,
+      y: 1270,
+      rowCount: 5,
       ports: [
-        { id: "ref-srf", side: "in", offset: 0.33, label: "Ref. SRF", required: true },
+        { id: "ref-srf", side: "in", row: 1, label: "Ref. SRF", required: true },
         {
           id: "architectural-design",
           side: "in",
-          offset: 0.75,
+          row: 3.5,
           label: "Architectural Design",
           required: true,
         },
-        { id: "wood-panel", side: "out", offset: 0.14, label: "Wood Panel" },
-        { id: "wood-block", side: "out", offset: 0.32, label: "Wood Block" },
-        { id: "corner-reveal", side: "out", offset: 0.5, label: "Corner Reveal" },
-        { id: "base-board", side: "out", offset: 0.68, label: "Base Board" },
-        { id: "t-bar-system", side: "out", offset: 0.86, label: "T-Bar System" },
+        { id: "wood-panel", side: "out", row: 0, label: "Wood Panel" },
+        { id: "wood-block", side: "out", row: 1, label: "Wood Block" },
+        { id: "corner-reveal", side: "out", row: 2, label: "Corner Reveal" },
+        { id: "base-board", side: "out", row: 3, label: "Base Board" },
+        { id: "t-bar-system", side: "out", row: 4, label: "T-Bar System" },
       ],
-    },
+    }),
     connector({
       id: "wood-panel",
       text: "Wood Panel",
       x: 4350,
-      y: 1367,
+      y: 1347,
       ports: bidirectionalConnectorPorts,
+    }),
+    connector({
+      id: "wood-panel-construct-branch",
+      text: "Wood Panel",
+      x: 5050,
+      y: 1347,
+      ports: bidirectionalConnectorPorts,
+      ariaLabel: "Wood Panel Construct 분기 연결 컴포넌트",
+    }),
+    connector({
+      id: "wood-panel-fabrication-branch",
+      text: "Wood Panel",
+      x: 5050,
+      y: 1622,
+      ports: bidirectionalConnectorPorts,
+      ariaLabel: "Wood Panel Fabrication 분기 연결 컴포넌트",
     }),
     connector({
       id: "wood-block",
       text: "Wood Block",
       x: 4350,
-      y: 1547,
+      y: 1497,
       ports: bidirectionalConnectorPorts,
     }),
     connector({
       id: "corner-reveal",
       text: "Corner Reveal",
       x: 4350,
-      y: 1727,
+      y: 1647,
       ports: bidirectionalConnectorPorts,
     }),
     connector({
       id: "base-board",
       text: "Base Board",
       x: 4350,
-      y: 1907,
+      y: 1797,
       ports: bidirectionalConnectorPorts,
     }),
     connector({
       id: "t-bar-system",
       text: "T-Bar System",
       x: 4350,
-      y: 2087,
+      y: 1947,
       ports: bidirectionalConnectorPorts,
     }),
-    {
+    processor({
       id: "fabrication",
-      kind: "processor",
       title: "FABRICATION & CONSTRUCTION REQUIREMENTS",
       icon: "/assets/hana-hq/icons/fabrication-requirements.png",
       ariaLabel: "Fabrication and Construction Requirements 주요 컴포넌트",
-      position: { x: 5450, y: 1170 },
-      size: { width: 1000, height: 1050 },
+      x: 5700,
+      y: 1170,
+      rowCount: 6,
       ports: [
-        { id: "wood-panel", side: "in", offset: 0.5, label: "Wood Panel", required: true },
-        { id: "finish-method", side: "out", offset: 0.13, label: "Finish Method" },
+        { id: "wood-panel", side: "in", row: 2.5, label: "Wood Panel", required: true },
+        { id: "finish-method", side: "out", row: 0, label: "Finish Method" },
         {
           id: "fabrication-method",
           side: "out",
-          offset: 0.29,
+          row: 1,
           label: "Fabrication Method",
         },
         {
           id: "panel-thickness",
           side: "out",
-          offset: 0.42,
+          row: 2,
           label: "Panel Thickness(mm)",
         },
-        { id: "panel-width", side: "out", offset: 0.58, label: "Panel Width(mm)" },
-        { id: "joint-width", side: "out", offset: 0.74, label: "Joint Width(mm)" },
-        { id: "max-length", side: "out", offset: 0.9, label: "Max Length(mm)" },
+        { id: "panel-width", side: "out", row: 3, label: "Panel Width(mm)" },
+        { id: "joint-width", side: "out", row: 4, label: "Joint Width(mm)" },
+        { id: "max-length", side: "out", row: 5, label: "Max Length(mm)" },
       ],
-    },
+    }),
     panel({
       id: "finish-method",
       value: "Wood veneer application",
       ariaLabel: "Finish Method 패널: Wood veneer application",
-      x: 6750,
-      y: 1246,
+      x: 6900,
+      y: 1230,
       width: 1100,
       height: 120,
     }),
@@ -215,8 +319,8 @@ export const HANA_HQ_SCENARIO = defineScenario({
       id: "fabrication-method",
       value: "Laminated timber fabrication followed by steam bending",
       ariaLabel: "Fabrication Method 설명 패널",
-      x: 6750,
-      y: 1389,
+      x: 6900,
+      y: 1355,
       width: 1350,
       height: 170,
     }),
@@ -224,8 +328,8 @@ export const HANA_HQ_SCENARIO = defineScenario({
       id: "panel-thickness",
       value: "20",
       ariaLabel: "Panel Thickness 20 millimeters 패널",
-      x: 7350,
-      y: 1554,
+      x: 7400,
+      y: 1535,
       width: 270,
       height: 110,
       hasOutput: true,
@@ -234,8 +338,8 @@ export const HANA_HQ_SCENARIO = defineScenario({
       id: "panel-width",
       value: "200",
       ariaLabel: "Panel Width 200 millimeters 패널",
-      x: 7350,
-      y: 1724,
+      x: 7400,
+      y: 1685,
       width: 270,
       height: 110,
       hasOutput: true,
@@ -244,8 +348,8 @@ export const HANA_HQ_SCENARIO = defineScenario({
       id: "joint-width",
       value: "6",
       ariaLabel: "Joint Width 6 millimeters 패널",
-      x: 7350,
-      y: 1894,
+      x: 7400,
+      y: 1835,
       width: 270,
       height: 110,
       hasOutput: true,
@@ -254,53 +358,53 @@ export const HANA_HQ_SCENARIO = defineScenario({
       id: "max-length",
       value: "2400",
       ariaLabel: "Max Length 2400 millimeters 패널",
-      x: 7350,
-      y: 2038,
+      x: 7400,
+      y: 1985,
       width: 270,
       height: 110,
       hasOutput: true,
     }),
-    {
+    processor({
       id: "construct",
-      kind: "processor",
       title: "CONSTRUCT WOOD PANEL 3D",
       icon: "/assets/hana-hq/icons/construct-wood-panel.png",
       ariaLabel: "Construct Wood Panel 3D 주요 컴포넌트",
-      position: { x: 8350, y: 1320 },
-      size: { width: 950, height: 850 },
+      x: 8350,
+      y: 1320,
+      rowCount: 5,
       ports: [
-        { id: "wood-panel", side: "in", offset: 0.1, label: "Wood Panel", required: true },
+        { id: "wood-panel", side: "in", row: 0, label: "Wood Panel", required: true },
         {
           id: "panel-thickness",
           side: "in",
-          offset: 0.34,
+          row: 1,
           label: "Panel Thickness(mm)",
           required: true,
         },
         {
           id: "panel-width",
           side: "in",
-          offset: 0.54,
+          row: 2,
           label: "Panel Width(mm)",
           required: true,
         },
         {
           id: "joint-width",
           side: "in",
-          offset: 0.74,
+          row: 3,
           label: "Joint Width(mm)",
           required: true,
         },
         {
           id: "max-length",
           side: "in",
-          offset: 0.91,
+          row: 4,
           label: "Max Length(mm)",
           required: true,
         },
-        { id: "model", side: "out", offset: 0.5, label: "3D Model" },
+        { id: "model", side: "out", row: 2, label: "3D Model" },
       ],
-    },
+    }),
     {
       id: "model-viewer",
       kind: "viewer",
@@ -324,19 +428,19 @@ export const HANA_HQ_SCENARIO = defineScenario({
       y: 1702,
       ports: bidirectionalConnectorPorts,
     }),
-    {
+    processor({
       id: "generate-drawings",
-      kind: "processor",
       title: "GENERATE 2D DRAWINGS",
       icon: "/assets/hana-hq/icons/generate-2d-drawings.png",
       ariaLabel: "Generate 2D Drawings 주요 컴포넌트",
-      position: { x: 12500, y: 1400 },
-      size: { width: 850, height: 690 },
+      x: 12500,
+      y: 1600,
+      rowCount: 1,
       ports: [
-        { id: "model", side: "in", offset: 0.5, label: "3D Model", required: true },
-        { id: "drawing", side: "out", offset: 0.5, label: "2D Drawing" },
+        { id: "model", side: "in", row: 0, label: "3D Model", required: true },
+        { id: "drawing", side: "out", row: 0, label: "2D Drawing" },
       ],
-    },
+    }),
     {
       id: "drawing-viewer",
       kind: "viewer",
@@ -384,8 +488,20 @@ export const HANA_HQ_SCENARIO = defineScenario({
       initiallyConnected: true,
     })),
     {
-      id: "wood-panel-to-fabrication",
+      id: "wood-panel-to-construct-branch",
       from: { nodeId: "wood-panel", portId: "out" },
+      to: { nodeId: "wood-panel-construct-branch", portId: "in" },
+      initiallyConnected: true,
+    },
+    {
+      id: "wood-panel-to-fabrication-branch",
+      from: { nodeId: "wood-panel", portId: "out" },
+      to: { nodeId: "wood-panel-fabrication-branch", portId: "in" },
+      initiallyConnected: true,
+    },
+    {
+      id: "wood-panel-fabrication-branch-to-fabrication",
+      from: { nodeId: "wood-panel-fabrication-branch", portId: "out" },
       to: { nodeId: "fabrication", portId: "wood-panel" },
       initiallyConnected: true,
     },
@@ -404,7 +520,7 @@ export const HANA_HQ_SCENARIO = defineScenario({
     })),
     {
       id: "wood-panel-to-construct",
-      from: { nodeId: "wood-panel", portId: "out" },
+      from: { nodeId: "wood-panel-construct-branch", portId: "out" },
       to: { nodeId: "construct", portId: "wood-panel" },
       initiallyConnected: false,
       mutable: true,

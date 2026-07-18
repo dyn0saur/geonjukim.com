@@ -75,6 +75,10 @@ const GRID_WIDTH = 15 * 40;
 const GRID_HEIGHT = 5 * 40;
 const SNAP_SCREEN_DISTANCE = 9;
 const MIN_VIEWER_SIZE = 420;
+const BEZIER_X_RATIO = 0.5;
+const BEZIER_Y_RATIO = 0.75;
+const CONTENT_FADE_START_ZOOM = 1;
+const CONTENT_HIDDEN_ZOOM = 0.7;
 
 const INITIAL_POSITIONS = Object.fromEntries(
   SCENARIO.nodes.map((node) => [node.id, node.position]),
@@ -110,9 +114,12 @@ function endpointKey(endpoint: ConnectionEndpoint) {
 }
 
 function bezierPath(from: Point, to: Point) {
-  const direction = to.x >= from.x ? 1 : -1;
-  const reach = Math.max(110, Math.abs(to.x - from.x) * 0.46);
-  return `M ${from.x} ${from.y} C ${from.x + reach * direction} ${from.y}, ${to.x - reach * direction} ${to.y}, ${to.x} ${to.y}`;
+  const deltaX = to.x - from.x;
+  const deltaY = to.y - from.y;
+  const controlX = from.x + deltaX * BEZIER_X_RATIO;
+  const firstControlY = from.y + deltaY * (1 - BEZIER_Y_RATIO);
+  const secondControlY = from.y + deltaY * BEZIER_Y_RATIO;
+  return `M ${from.x} ${from.y} C ${controlX} ${firstControlY}, ${controlX} ${secondControlY}, ${to.x} ${to.y}`;
 }
 
 function normalizeFence(fence: Fence) {
@@ -681,11 +688,19 @@ export default function NodeCanvas() {
     });
   };
 
+  const contentOpacity = clamp(
+    (zoom - CONTENT_HIDDEN_ZOOM) /
+      (CONTENT_FADE_START_ZOOM - CONTENT_HIDDEN_ZOOM),
+    0,
+    1,
+  );
+
   const worldStyle = {
     width: SCENARIO.world.width,
     height: SCENARIO.world.height,
     transform: `translate3d(${pan.x}px, ${pan.y}px, 0) scale(${scale})`,
     "--world-css-pixel": `${1 / scale}px`,
+    "--canvas-content-opacity": contentOpacity,
   } as CSSProperties;
 
   const gridStyle = {
@@ -782,6 +797,7 @@ export default function NodeCanvas() {
               <path
                 key={connection.id}
                 className="wire"
+                data-connection-id={connection.id}
                 d={bezierPath(from, to)}
                 style={stroke ? { stroke } : undefined}
               />
@@ -917,12 +933,22 @@ function CanvasNodeView({
     event: ReactPointerEvent,
   ) => void;
 }) {
-  const style: CSSProperties = {
+  const style = {
     left: position.x,
     top: position.y,
     width: size.width,
     height: size.height,
-  };
+    ...(node.kind === "processor"
+      ? {
+          "--processor-input-left": `${node.layout.inputLeft}px`,
+          "--processor-input-width": `${node.layout.inputWidth}px`,
+          "--processor-icon-center": `${node.layout.iconCenter}px`,
+          "--processor-icon-size": `${node.layout.iconSize}px`,
+          "--processor-output-left": `${node.layout.outputLeft}px`,
+          "--processor-output-width": `${node.layout.outputWidth}px`,
+        }
+      : {}),
+  } as CSSProperties;
   const warning = missingInputs.length > 0;
 
   if (node.kind === "scribble") {
@@ -930,6 +956,7 @@ function CanvasNodeView({
       <section
         className={`canvas-node scribble-node ${selected ? "is-selected" : ""}`}
         style={style}
+        data-node-id={node.id}
         aria-label={node.ariaLabel}
         onPointerDown={(event) => onMove(node.id, event)}
       >
@@ -954,6 +981,7 @@ function CanvasNodeView({
     <section
       className={nodeClassName}
       style={style}
+      data-node-id={node.id}
       aria-label={node.ariaLabel}
       onPointerDown={(event) => onMove(node.id, event)}
     >

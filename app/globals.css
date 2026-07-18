@@ -124,15 +124,26 @@ button {
 }
 
 .component-node {
-  border: 5px solid #3d3d3d;
+  --node-border: #3d3d3d;
+  border: 5px solid var(--node-border);
   border-radius: 17px;
   box-shadow:
     inset 0 0 0 var(--world-css-pixel) rgb(255 255 255 / 20%),
     0 5px 10px rgb(0 0 0 / 12%);
 }
 
+.component-node::after {
+  content: "";
+  position: absolute;
+  z-index: 11;
+  inset: -5px;
+  border: 5px solid var(--node-border);
+  border-radius: 17px;
+  pointer-events: none;
+}
+
 .component-node.is-selected {
-  border-color: #315f1a;
+  --node-border: #315f1a;
   background: linear-gradient(
     to bottom,
     var(--selected-highlight) 0 22%,
@@ -153,7 +164,9 @@ button {
   font-weight: 900;
   letter-spacing: -5px;
   line-height: 1;
+  opacity: var(--canvas-content-opacity);
   text-shadow: 0 2px rgb(255 255 255 / 38%);
+  transition: opacity 120ms linear;
 }
 
 .scribble-node.is-selected {
@@ -178,7 +191,7 @@ button {
 }
 
 .processor-node.is-warning {
-  border-color: #762000;
+  --node-border: #762000;
   background: linear-gradient(
     to bottom,
     #fff5dc 0,
@@ -188,15 +201,21 @@ button {
   );
 }
 
+.processor-node.is-warning.is-selected {
+  --node-border: #315f1a;
+}
+
 .processor-icon {
   position: absolute;
-  left: 47%;
+  left: var(--processor-icon-center);
   top: 50%;
-  width: 150px;
-  height: 150px;
+  width: var(--processor-icon-size);
+  height: var(--processor-icon-size);
   object-fit: contain;
+  opacity: var(--canvas-content-opacity);
   pointer-events: none;
   transform: translate(-50%, -50%);
+  transition: opacity 120ms linear;
 }
 
 .bifocal-label {
@@ -216,8 +235,10 @@ button {
   font-size: 34px;
   font-weight: 500;
   line-height: 1.15;
+  opacity: var(--canvas-content-opacity);
   text-align: center;
   transform: translateX(-50%);
+  transition: opacity 120ms linear;
 }
 
 .bifocal-label::before,
@@ -250,19 +271,21 @@ button {
   font-family: var(--canvas-font);
   font-size: 34px;
   line-height: 1.08;
+  opacity: var(--canvas-content-opacity);
   pointer-events: none;
   transform: translateY(-50%);
+  transition: opacity 120ms linear;
 }
 
 .processor-port-label.is-in {
-  left: 28px;
-  width: 34%;
-  text-align: center;
+  left: var(--processor-input-left);
+  width: var(--processor-input-width);
+  text-align: left;
 }
 
 .processor-port-label.is-out {
-  left: 55%;
-  right: 28px;
+  left: var(--processor-output-left);
+  width: var(--processor-output-width);
   text-align: left;
 }
 
@@ -279,7 +302,9 @@ button {
   font-family: var(--canvas-font);
   font-size: 36px;
   line-height: 1;
+  opacity: var(--canvas-content-opacity);
   text-align: center;
+  transition: opacity 120ms linear;
   white-space: nowrap;
 }
 
@@ -299,7 +324,9 @@ button {
   font-family: var(--canvas-font);
   font-size: 42px;
   line-height: 1.04;
+  opacity: var(--canvas-content-opacity);
   text-align: left;
+  transition: opacity 120ms linear;
 }
 
 .panel-value.is-long {
@@ -342,6 +369,8 @@ button {
   color: white;
   font-size: 38px;
   line-height: 1;
+  opacity: var(--canvas-content-opacity);
+  transition: opacity 120ms linear;
 }
 
 .viewer-caption {
@@ -355,7 +384,9 @@ button {
   font-size: 32px;
   font-weight: 700;
   letter-spacing: 1px;
+  opacity: var(--canvas-content-opacity);
   transform: translateX(-50%);
+  transition: opacity 120ms linear;
 }
 
 .viewer-alert {
@@ -396,8 +427,10 @@ button {
   font-size: 30px;
   font-weight: 600;
   letter-spacing: 0.5px;
+  opacity: var(--canvas-content-opacity);
   text-align: center;
   transform: translateX(-50%);
+  transition: opacity 120ms linear;
 }
 
 .viewer-message.is-ready {
@@ -413,21 +446,12 @@ button {
 .viewer-resize-handle {
   position: absolute;
   z-index: 15;
-  width: 58px;
-  height: 58px;
+  width: 100px;
+  height: 100px;
   padding: 0;
-  border: 5px solid #2f2f2f;
-  border-radius: 8px;
-  background: rgb(255 255 255 / 92%);
-  box-shadow: 0 4px 9px rgb(0 0 0 / 20%);
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 100ms ease, background 100ms ease;
-}
-
-.viewer-node:hover .viewer-resize-handle,
-.viewer-node:focus-within .viewer-resize-handle,
-.viewer-node.is-selected .viewer-resize-handle {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
   opacity: 1;
   pointer-events: auto;
 }
@@ -435,30 +459,30 @@ button {
 .viewer-resize-handle:hover,
 .viewer-resize-handle:focus-visible {
   outline: none;
-  background: var(--selected-highlight);
+  background: transparent;
 }
 
 .viewer-resize-handle.is-north-west {
-  top: -24px;
-  left: -24px;
+  top: -30px;
+  left: -30px;
   cursor: nwse-resize;
 }
 
 .viewer-resize-handle.is-north-east {
-  top: -24px;
-  right: -24px;
+  top: -30px;
+  right: -30px;
   cursor: nesw-resize;
 }
 
 .viewer-resize-handle.is-south-west {
-  bottom: -24px;
-  left: -24px;
+  bottom: -30px;
+  left: -30px;
   cursor: nesw-resize;
 }
 
 .viewer-resize-handle.is-south-east {
-  right: -24px;
-  bottom: -24px;
+  right: -30px;
+  bottom: -30px;
   cursor: nwse-resize;
 }
 

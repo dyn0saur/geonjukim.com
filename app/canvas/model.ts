@@ -29,9 +29,19 @@ export type ScribbleNode = BaseNode<"scribble"> & {
   text: string;
 };
 
+export type ProcessorLayout = {
+  inputLeft: number;
+  inputWidth: number;
+  iconCenter: number;
+  iconSize: number;
+  outputLeft: number;
+  outputWidth: number;
+};
+
 export type ProcessorNode = BaseNode<"processor"> & {
   title: string;
   icon: string;
+  layout: ProcessorLayout;
 };
 
 export type ConnectorNode = BaseNode<"connector"> & {
@@ -105,6 +115,20 @@ export function defineScenario(scenario: CanvasScenario): CanvasScenario {
     }
 
     nodes.set(node.id, node);
+
+    if (node.kind === "processor") {
+      const { layout } = node;
+      const iconLeft = layout.iconCenter - layout.iconSize / 2;
+      const iconRight = layout.iconCenter + layout.iconSize / 2;
+      if (
+        layout.inputLeft < 0 ||
+        layout.inputLeft + layout.inputWidth > iconLeft ||
+        iconRight > layout.outputLeft ||
+        layout.outputLeft + layout.outputWidth > node.size.width
+      ) {
+        throw new Error(`Processor layout exceeds node bounds: ${node.id}`);
+      }
+    }
   }
 
   for (const connection of scenario.connections) {

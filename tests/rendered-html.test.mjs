@@ -37,6 +37,8 @@ test("server-renders the HANA HQ project canvas", async () => {
   assert.match(html, /GENERATE 2D DRAWINGS/);
   assert.match(html, /Wood veneer application/);
   assert.match(html, /Laminated timber fabrication followed by steam bending/);
+  assert.match(html, /Wood Panel Construct 분기 연결 컴포넌트/);
+  assert.match(html, /Wood Panel Fabrication 분기 연결 컴포넌트/);
   assert.match(html, /AWAITING 3D MODEL/);
   assert.doesNotMatch(html, /연결 단계/);
   assert.match(html, /좌클릭 드래그: 영역 선택/);
