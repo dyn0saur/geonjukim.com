@@ -43,6 +43,7 @@ test("server-renders the HANA HQ project canvas", async () => {
   assert.doesNotMatch(html, /연결 단계/);
   assert.match(html, /좌클릭 드래그: 영역 선택/);
   assert.match(html, /우클릭 드래그: 이동/);
+  assert.match(html, /Ctrl\+Z\/Y: 실행 취소\/다시 실행/);
   assert.match(html, /south-east 모서리에서 크기 조절/);
   assert.match(html, /deconstruct-ref-surface\.png/);
   assert.match(html, /fabrication-requirements\.png/);

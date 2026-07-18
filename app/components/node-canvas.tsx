@@ -27,6 +27,11 @@ type Guide = { x?: number; y?: number; kind?: "edge" | "port" };
 type ConnectionAction = "add" | "remove";
 type ResizeCorner = "north-west" | "north-east" | "south-west" | "south-east";
 type Fence = { start: Point; current: Point };
+type CanvasDocument = {
+  positions: Positions;
+  sizes: Sizes;
+  activeConnectionIds: Set<string>;
+};
 
 type Interaction =
   | { type: "idle" }
@@ -50,6 +55,7 @@ type Interaction =
       nodeIds: readonly string[];
       startClient: Point;
       startPositions: Positions;
+      startDocument: CanvasDocument;
     }
   | {
       type: "resize";
@@ -59,6 +65,7 @@ type Interaction =
       startClient: Point;
       startPosition: Point;
       startSize: Size;
+      startDocument: CanvasDocument;
     }
   | {
       type: "connect";
@@ -79,6 +86,7 @@ const BEZIER_X_RATIO = 0.5;
 const BEZIER_Y_RATIO = 0.75;
 const CONTENT_FADE_START_ZOOM = 1;
 const CONTENT_HIDDEN_ZOOM = 0.7;
+const HISTORY_LIMIT = 100;
 
 const INITIAL_POSITIONS = Object.fromEntries(
   SCENARIO.nodes.map((node) => [node.id, node.position]),
@@ -93,6 +101,12 @@ const INITIAL_CONNECTION_IDS = new Set(
     .filter((connection) => connection.initiallyConnected)
     .map((connection) => connection.id),
 );
+
+const INITIAL_DOCUMENT: CanvasDocument = {
+  positions: INITIAL_POSITIONS,
+  sizes: INITIAL_SIZES,
+  activeConnectionIds: INITIAL_CONNECTION_IDS,
+};
 
 const RESIZE_CORNERS: readonly ResizeCorner[] = [
   "north-west",
@@ -111,6 +125,30 @@ function distance(a: Point, b: Point) {
 
 function endpointKey(endpoint: ConnectionEndpoint) {
   return `${endpoint.nodeId}.${endpoint.portId}`;
+}
+
+function canvasDocumentsEqual(a: CanvasDocument, b: CanvasDocument) {
+  if (a.activeConnectionIds.size !== b.activeConnectionIds.size) return false;
+  for (const id of a.activeConnectionIds) {
+    if (!b.activeConnectionIds.has(id)) return false;
+  }
+
+  for (const node of SCENARIO.nodes) {
+    const aPosition = a.positions[node.id];
+    const bPosition = b.positions[node.id];
+    const aSize = a.sizes[node.id];
+    const bSize = b.sizes[node.id];
+    if (
+      aPosition.x !== bPosition.x ||
+      aPosition.y !== bPosition.y ||
+      aSize.width !== bSize.width ||
+      aSize.height !== bSize.height
+    ) {
+      return false;
+    }
+  }
+
+  return true;
 }
 
 function bezierPath(from: Point, to: Point) {
@@ -277,15 +315,16 @@ export default function NodeCanvas() {
   const canvasRef = useRef<HTMLElement>(null);
   const interactionRef = useRef<Interaction>({ type: "idle" });
   const positionedRef = useRef(false);
+  const pastDocumentsRef = useRef<CanvasDocument[]>([]);
+  const futureDocumentsRef = useRef<CanvasDocument[]>([]);
+  const documentRef = useRef<CanvasDocument>(INITIAL_DOCUMENT);
   const nodesById = useMemo(
     () => new Map(SCENARIO.nodes.map((node) => [node.id, node])),
     [],
   );
-  const [positions, setPositions] = useState<Positions>(INITIAL_POSITIONS);
-  const [sizes, setSizes] = useState<Sizes>(INITIAL_SIZES);
-  const [activeConnectionIds, setActiveConnectionIds] = useState(
-    () => new Set(INITIAL_CONNECTION_IDS),
-  );
+  const [canvasDocument, setCanvasDocument] =
+    useState<CanvasDocument>(INITIAL_DOCUMENT);
+  const { positions, sizes, activeConnectionIds } = canvasDocument;
   const [selectedNodeIds, setSelectedNodeIds] = useState<Set<string>>(
     () => new Set(),
   );
@@ -314,6 +353,81 @@ export default function NodeCanvas() {
       y: window.innerHeight / 2 - SCENARIO.initialFocus.y * scale,
     });
   }, [scale]);
+
+  useEffect(() => {
+    const handleHistoryShortcut = (event: KeyboardEvent) => {
+      const target = event.target;
+      if (
+        target instanceof HTMLElement &&
+        (target.isContentEditable ||
+          target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.tagName === "SELECT")
+      ) {
+        return;
+      }
+
+      const modifier = event.ctrlKey || event.metaKey;
+      const key = event.key.toLowerCase();
+      const wantsUndo = modifier && key === "z" && !event.shiftKey;
+      const wantsRedo =
+        modifier && (key === "y" || (key === "z" && event.shiftKey));
+      if (!wantsUndo && !wantsRedo) return;
+
+      event.preventDefault();
+      const interaction = interactionRef.current;
+      if (interaction.type !== "idle") {
+        try {
+          canvasRef.current?.releasePointerCapture(interaction.pointerId);
+        } catch {
+          // The browser may already have released this pointer.
+        }
+      }
+      interactionRef.current = { type: "idle" };
+      setMode("idle");
+      setGuide({});
+      setFence(null);
+      setConnectingFromPoint(null);
+      setConnectingPoint(null);
+      setTargetConnectionId(null);
+      setConnectionAction(null);
+
+      const source = wantsUndo ? pastDocumentsRef : futureDocumentsRef;
+      const destination = wantsUndo ? futureDocumentsRef : pastDocumentsRef;
+      const restored = source.current.at(-1);
+      if (!restored) return;
+
+      source.current = source.current.slice(0, -1);
+      destination.current = [
+        ...destination.current,
+        documentRef.current,
+      ].slice(-HISTORY_LIMIT);
+      documentRef.current = restored;
+      setCanvasDocument(restored);
+    };
+
+    window.addEventListener("keydown", handleHistoryShortcut);
+    return () => window.removeEventListener("keydown", handleHistoryShortcut);
+  }, []);
+
+  const recordHistory = (before: CanvasDocument, after: CanvasDocument) => {
+    if (canvasDocumentsEqual(before, after)) return false;
+    pastDocumentsRef.current = [...pastDocumentsRef.current, before].slice(
+      -HISTORY_LIMIT,
+    );
+    futureDocumentsRef.current = [];
+    return true;
+  };
+
+  const updateCanvasDocument = (
+    update: (current: CanvasDocument) => CanvasDocument,
+  ) => {
+    setCanvasDocument((current) => {
+      const next = update(current);
+      documentRef.current = next;
+      return next;
+    });
+  };
 
   const connectedPortKeys = useMemo(() => {
     const keys = new Set<string>();
@@ -385,6 +499,7 @@ export default function NodeCanvas() {
       nodeIds,
       startClient: { x: event.clientX, y: event.clientY },
       startPositions,
+      startDocument: documentRef.current,
     };
     setMode("move");
     capturePointer(event.pointerId);
@@ -410,6 +525,7 @@ export default function NodeCanvas() {
       startClient: { x: event.clientX, y: event.clientY },
       startPosition: positions[nodeId] ?? node.position,
       startSize: sizes[nodeId] ?? node.size,
+      startDocument: documentRef.current,
     };
     setMode("resize");
     capturePointer(event.pointerId);
@@ -553,13 +669,16 @@ export default function NodeCanvas() {
         x: snapped.position.x - startPosition.x,
         y: snapped.position.y - startPosition.y,
       };
-      setPositions((current) => {
-        const next = { ...current };
+      updateCanvasDocument((current) => {
+        const nextPositions = { ...current.positions };
         for (const nodeId of interaction.nodeIds) {
           const start = interaction.startPositions[nodeId];
-          next[nodeId] = { x: start.x + delta.x, y: start.y + delta.y };
+          nextPositions[nodeId] = {
+            x: start.x + delta.x,
+            y: start.y + delta.y,
+          };
         }
-        return next;
+        return { ...current, positions: nextPositions };
       });
       setGuide(snapped.guide);
       return;
@@ -582,19 +701,22 @@ export default function NodeCanvas() {
         MIN_VIEWER_SIZE,
         SCENARIO.world.height,
       );
-      setSizes((current) => ({
+      updateCanvasDocument((current) => ({
         ...current,
-        [interaction.nodeId]: { width, height },
-      }));
-      setPositions((current) => ({
-        ...current,
-        [interaction.nodeId]: {
-          x: west
-            ? interaction.startPosition.x + interaction.startSize.width - width
-            : interaction.startPosition.x,
-          y: north
-            ? interaction.startPosition.y + interaction.startSize.height - height
-            : interaction.startPosition.y,
+        sizes: {
+          ...current.sizes,
+          [interaction.nodeId]: { width, height },
+        },
+        positions: {
+          ...current.positions,
+          [interaction.nodeId]: {
+            x: west
+              ? interaction.startPosition.x + interaction.startSize.width - width
+              : interaction.startPosition.x,
+            y: north
+              ? interaction.startPosition.y + interaction.startSize.height - height
+              : interaction.startPosition.y,
+          },
         },
       }));
       return;
@@ -628,6 +750,10 @@ export default function NodeCanvas() {
       setSelectedNodeIds(new Set());
     }
 
+    if (interaction.type === "move" || interaction.type === "resize") {
+      recordHistory(interaction.startDocument, documentRef.current);
+    }
+
     if (interaction.type === "connect") {
       const end = screenToWorld(event.clientX, event.clientY);
       const closest = closestCandidate(
@@ -638,15 +764,21 @@ export default function NodeCanvas() {
         nodesById,
       );
       if (closest && closest.distance <= 30 / scale) {
-        setActiveConnectionIds((current) => {
-          const next = new Set(current);
-          if (interaction.action === "add") {
-            next.add(closest.connection.id);
-          } else {
-            next.delete(closest.connection.id);
-          }
-          return next;
-        });
+        const before = documentRef.current;
+        const nextConnectionIds = new Set(before.activeConnectionIds);
+        if (interaction.action === "add") {
+          nextConnectionIds.add(closest.connection.id);
+        } else {
+          nextConnectionIds.delete(closest.connection.id);
+        }
+        const after = {
+          ...before,
+          activeConnectionIds: nextConnectionIds,
+        };
+        if (recordHistory(before, after)) {
+          documentRef.current = after;
+          setCanvasDocument(after);
+        }
       }
     }
 
@@ -893,6 +1025,8 @@ export default function NodeCanvas() {
         <span>휠: 확대/축소</span>
         <span aria-hidden="true">·</span>
         <span>Ctrl+드래그: 연결 삭제</span>
+        <span aria-hidden="true">·</span>
+        <span>Ctrl+Z/Y: 실행 취소/다시 실행</span>
       </aside>
     </main>
   );
