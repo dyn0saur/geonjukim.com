@@ -94,6 +94,10 @@ button {
   stroke-dasharray: 28px 24px;
 }
 
+.wire-preview.is-removal {
+  stroke: #9d1c1c;
+}
+
 .snap-guide {
   stroke: var(--snap);
   stroke-width: 3px;
@@ -119,12 +123,15 @@ button {
 .panel-node {
   display: flex;
   align-items: center;
-  padding: 0 28px;
+  justify-content: center;
+  padding: 0;
   border-radius: 20px;
   background: linear-gradient(to bottom, #ffffa2 0 16%, var(--panel) 48% 100%);
 }
 
 .panel-value {
+  width: 100%;
+  text-align: center;
   font-family: Georgia, "Times New Roman", serif;
   font-size: 60px;
   line-height: 1;
@@ -235,6 +242,11 @@ button {
   scale: 1.22;
   background: #fff;
   box-shadow: 0 0 0 9px rgb(255 255 255 / 48%);
+}
+
+.port.is-disconnect-target {
+  background: #ffd4d4;
+  box-shadow: 0 0 0 9px rgb(157 28 28 / 28%);
 }
 
 .add-node .port-a {

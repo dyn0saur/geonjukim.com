@@ -13,6 +13,7 @@ type NodeId = "five" | "three" | "add" | "result";
 type Point = { x: number; y: number };
 type Positions = Record<NodeId, Point>;
 type Guide = { x?: number; y?: number; kind?: "edge" | "port" };
+type ConnectionAction = "add" | "remove";
 
 type Interaction =
   | { type: "idle" }
@@ -34,12 +35,13 @@ type Interaction =
       pointerId: number;
       from: Point;
       current: Point;
+      action: ConnectionAction;
     };
 
 const MIN_ZOOM = 0.2;
 const MAX_ZOOM = 3;
-const GRID_WIDTH = 15;
-const GRID_HEIGHT = 5;
+const GRID_WIDTH = 15 * 40;
+const GRID_HEIGHT = 5 * 40;
 const SNAP_SCREEN_DISTANCE = 9;
 
 const NODE_SPECS: Record<
@@ -198,6 +200,8 @@ export default function Home() {
   const [guide, setGuide] = useState<Guide>({});
   const [connectingPoint, setConnectingPoint] = useState<Point | null>(null);
   const [targetActive, setTargetActive] = useState(false);
+  const [connectionAction, setConnectionAction] =
+    useState<ConnectionAction | null>(null);
   const [isCompleted, setIsCompleted] = useState(false);
 
   const scale = zoom / MAX_ZOOM;
@@ -266,18 +270,24 @@ export default function Home() {
   };
 
   const beginConnection = (event: ReactPointerEvent) => {
-    if (event.button !== 0 || isCompleted) return;
+    if (event.button !== 0) return;
     event.preventDefault();
     event.stopPropagation();
+    const action: ConnectionAction = event.ctrlKey ? "remove" : "add";
+    if ((action === "add" && isCompleted) || (action === "remove" && !isCompleted)) {
+      return;
+    }
     const start = wirePoints.fiveOut;
     interactionRef.current = {
       type: "connect",
       pointerId: event.pointerId,
       from: start,
       current: start,
+      action,
     };
     setMode("connect");
     setConnectingPoint(start);
+    setConnectionAction(action);
     capturePointer(event.pointerId);
   };
 
@@ -348,7 +358,7 @@ export default function Home() {
     if (interaction.type === "connect") {
       const end = screenToWorld(event.clientX, event.clientY);
       if (distance(end, wirePoints.addA) <= 28 / scale) {
-        setIsCompleted(true);
+        setIsCompleted(interaction.action === "add");
       }
     }
 
@@ -358,6 +368,7 @@ export default function Home() {
     setGuide({});
     setConnectingPoint(null);
     setTargetActive(false);
+    setConnectionAction(null);
   };
 
   const handleWheel = (event: ReactWheelEvent<HTMLElement>) => {
@@ -413,14 +424,14 @@ export default function Home() {
           <defs>
             <marker
               id="connection-arrow"
-              markerWidth="18"
-              markerHeight="18"
-              refX="13"
-              refY="9"
+              markerWidth="42"
+              markerHeight="32"
+              refX="32"
+              refY="16"
               orient="auto"
               markerUnits="userSpaceOnUse"
             >
-              <path d="M 0 0 L 18 9 L 0 18 z" fill="#101010" />
+              <path d="M 0 0 L 42 16 L 0 32 z" fill="#101010" />
             </marker>
           </defs>
 
@@ -438,9 +449,9 @@ export default function Home() {
               d={bezierPath(wirePoints.fiveOut, wirePoints.addA)}
             />
           )}
-          {!isCompleted && connectingPoint && (
+          {connectingPoint && (
             <path
-              className="wire wire-preview"
+              className={`wire wire-preview ${connectionAction === "remove" ? "is-removal" : ""}`}
               d={bezierPath(wirePoints.fiveOut, connectingPoint)}
               markerEnd="url(#connection-arrow)"
             />
@@ -475,7 +486,7 @@ export default function Home() {
           outputProps={{
             onPointerDown: beginConnection,
             "aria-label": isCompleted
-              ? "5 패널 출력, A 입력에 연결됨"
+              ? "5 패널 출력, Ctrl을 누른 채 A 입력으로 드래그하여 연결 삭제"
               : "5 패널 출력, A 입력으로 드래그하여 연결",
           }}
         />
@@ -490,6 +501,7 @@ export default function Home() {
           position={positions.add}
           warning={!isCompleted}
           targetActive={targetActive}
+          connectionAction={connectionAction}
           onMove={beginMove}
         />
         <PanelNode
@@ -507,6 +519,8 @@ export default function Home() {
         <span>우클릭 드래그: 이동</span>
         <span aria-hidden="true">·</span>
         <span>휠: 확대/축소</span>
+        <span aria-hidden="true">·</span>
+        <span>Ctrl+드래그: 연결 삭제</span>
       </aside>
     </main>
   );
@@ -556,11 +570,13 @@ function AddNode({
   position,
   warning,
   targetActive,
+  connectionAction,
   onMove,
 }: {
   position: Point;
   warning: boolean;
   targetActive: boolean;
+  connectionAction: ConnectionAction | null;
   onMove: (nodeId: NodeId, event: ReactPointerEvent) => void;
 }) {
   return (
@@ -581,7 +597,9 @@ function AddNode({
       <div className="add-icon" aria-hidden="true">+</div>
       <Port
         side="in"
-        className={`port-a ${targetActive ? "is-target" : ""}`}
+        className={`port-a ${targetActive ? "is-target" : ""} ${
+          targetActive && connectionAction === "remove" ? "is-disconnect-target" : ""
+        }`}
         connected={!warning}
         aria-label="더하기 컴포넌트 A 입력"
       />
