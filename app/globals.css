@@ -281,12 +281,13 @@ button {
   pointer-events: none;
   transform: translateY(-50%);
   transition: opacity 120ms linear;
+  white-space: nowrap;
 }
 
 .processor-port-label.is-in {
   left: var(--processor-input-left);
   width: var(--processor-input-width);
-  text-align: left;
+  text-align: right;
 }
 
 .processor-port-label.is-out {

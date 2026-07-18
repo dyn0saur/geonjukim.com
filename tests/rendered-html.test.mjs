@@ -51,6 +51,9 @@ test("server-renders the HANA HQ project canvas", async () => {
     html,
     /data-node-id="architectural-design"[^>]*data-data-valid="true"/,
   );
+  assert.match(html, /Ref\. SRF input is required\./);
+  assert.match(html, /Wood Panel has no valid upstream data\./);
+  assert.doesNotMatch(html, /입력이 필요합니다|유효한 데이터가 없습니다|경고:/);
   assert.match(html, /AWAITING 3D MODEL/);
   assert.doesNotMatch(html, /연결 단계/);
   assert.match(html, /좌클릭 드래그: 영역 선택/);

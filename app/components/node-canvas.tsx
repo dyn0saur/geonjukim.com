@@ -1202,10 +1202,10 @@ function CanvasNodeView({
   const warningDescription = inputIssues
     .map(({ port, reason }) =>
       reason === "missing"
-        ? `${port.label ?? port.id} 입력이 필요합니다`
-        : `${port.label ?? port.id}에 유효한 데이터가 없습니다`,
+        ? `${port.label ?? port.id} input is required.`
+        : `${port.label ?? port.id} has no valid upstream data.`,
     )
-    .join(", ");
+    .join(" ");
 
   if (node.kind === "scribble") {
     return (
@@ -1240,7 +1240,7 @@ function CanvasNodeView({
       style={style}
       data-node-id={node.id}
       data-data-valid={dataValid}
-      aria-label={`${node.ariaLabel}${warning ? ", 데이터 경고" : ""}`}
+      aria-label={`${node.ariaLabel}${warning ? ", data warning" : ""}`}
       onPointerDown={(event) => onMove(node.id, event)}
     >
       {node.kind === "processor" && (
@@ -1271,7 +1271,7 @@ function CanvasNodeView({
             <button
               className="warning-indicator"
               type="button"
-              aria-label={`경고: ${warningDescription}`}
+              aria-label={`Warning: ${warningDescription}`}
               onPointerDown={(event) => event.stopPropagation()}
             >
               <span className="warning-tooltip" role="tooltip">
