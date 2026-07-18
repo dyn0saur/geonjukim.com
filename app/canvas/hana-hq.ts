@@ -12,17 +12,21 @@ const PROCESSOR_COLUMN_GAP = 76;
 const PROCESSOR_ICON_SIZE = 170;
 const PROCESSOR_VERTICAL_PADDING = 120;
 const PROCESSOR_ROW_GAP = 150;
+const COMPONENT_TEXT_SCALE = 1.2;
+const PROCESSOR_LABEL_WIDTH_SAFETY = 1.05;
 
 type ProcessorPortSpec = Omit<PortDefinition, "offset"> & { row: number };
 
 function estimatedLabelWidth(label: string | undefined) {
   if (!label) return 0;
-  return [...label].reduce((width, character) => {
-    if (character === " ") return width + 9;
-    if (/[ilI.,()]/.test(character)) return width + 10;
-    if (/[MW]/.test(character)) return width + 25;
-    return width + 18;
-  }, 16);
+  return (
+    [...label].reduce((width, character) => {
+      if (character === " ") return width + 9;
+      if (/[ilI.,()]/.test(character)) return width + 10;
+      if (/[MW]/.test(character)) return width + 25;
+      return width + 18;
+    }, 16) * COMPONENT_TEXT_SCALE * PROCESSOR_LABEL_WIDTH_SAFETY
+  );
 }
 
 function processor({
@@ -45,13 +49,13 @@ function processor({
   ports: readonly ProcessorPortSpec[];
 }): ProcessorNode {
   const inputWidth = Math.max(
-    180,
+    180 * COMPONENT_TEXT_SCALE * PROCESSOR_LABEL_WIDTH_SAFETY,
     ...ports
       .filter((port) => port.side === "in")
       .map((port) => estimatedLabelWidth(port.label)),
   );
   const outputWidth = Math.max(
-    180,
+    180 * COMPONENT_TEXT_SCALE * PROCESSOR_LABEL_WIDTH_SAFETY,
     ...ports
       .filter((port) => port.side === "out")
       .map((port) => estimatedLabelWidth(port.label)),
@@ -94,7 +98,7 @@ function processor({
 }
 
 function connectorWidth(text: string) {
-  return Math.max(210, text.length * 23 + 64);
+  return Math.max(210, text.length * 23 * COMPONENT_TEXT_SCALE + 64);
 }
 
 function connector({

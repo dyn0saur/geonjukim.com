@@ -273,7 +273,7 @@ button {
   position: absolute;
   color: #161616;
   font-family: var(--canvas-font);
-  font-size: 34px;
+  font-size: 40.8px;
   line-height: 1.08;
   opacity: var(--canvas-content-opacity);
   pointer-events: none;
@@ -305,7 +305,7 @@ button {
   width: 100%;
   overflow: hidden;
   font-family: var(--canvas-font);
-  font-size: 36px;
+  font-size: 43.2px;
   line-height: 1;
   opacity: var(--canvas-content-opacity);
   text-align: center;
@@ -327,7 +327,7 @@ button {
   width: 100%;
   overflow-wrap: anywhere;
   font-family: var(--canvas-font);
-  font-size: 42px;
+  font-size: 50.4px;
   line-height: 1.04;
   opacity: var(--canvas-content-opacity);
   text-align: left;
@@ -335,7 +335,7 @@ button {
 }
 
 .panel-value.is-long {
-  font-size: 38px;
+  font-size: 45.6px;
 }
 
 .viewer-node {
@@ -372,7 +372,7 @@ button {
   border-radius: 6px;
   background: #2e78c4;
   color: white;
-  font-size: 38px;
+  font-size: 45.6px;
   line-height: 1;
   opacity: var(--canvas-content-opacity);
   transition: opacity 120ms linear;
@@ -386,7 +386,7 @@ button {
   border: 2px solid rgb(55 55 55 / 36%);
   border-radius: 7px;
   background: rgb(255 255 255 / 78%);
-  font-size: 32px;
+  font-size: 38.4px;
   font-weight: 700;
   letter-spacing: 1px;
   opacity: var(--canvas-content-opacity);
@@ -429,7 +429,7 @@ button {
   border-radius: 8px;
   background: rgb(255 255 255 / 82%);
   color: #272727;
-  font-size: 30px;
+  font-size: 36px;
   font-weight: 600;
   letter-spacing: 0.5px;
   opacity: var(--canvas-content-opacity);
