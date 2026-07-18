@@ -619,9 +619,11 @@ button {
 
 .canvas-separation {
   position: absolute;
+  top: 0;
+  bottom: 0;
   z-index: 32;
-  border-right: var(--world-css-pixel) dotted #232323;
-  border-left: var(--world-css-pixel) dotted #232323;
+  border-right: 1px dotted #232323;
+  border-left: 1px dotted #232323;
   background: rgb(255 255 255 / 26%);
   pointer-events: none;
 }
@@ -633,7 +635,7 @@ button {
   width: 100px;
   height: 58px;
   place-items: center;
-  border: var(--world-css-pixel) solid rgb(45 45 45 / 52%);
+  border: 1px solid rgb(45 45 45 / 52%);
   border-radius: 5px;
   color: #242424;
   background: rgb(255 255 255 / 82%);

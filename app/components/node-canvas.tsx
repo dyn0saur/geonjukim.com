@@ -936,6 +936,11 @@ export default function NodeCanvas() {
   const separationWidth = separation
     ? Math.abs(separation.currentX - separation.anchorX)
     : 0;
+  const separationScreenLeft = pan.x + separationLeft * scale;
+  const separationScreenWidth = separationWidth * scale;
+  const separationScreenAnchorY = separation
+    ? pan.y + separation.anchorY * scale
+    : 0;
 
   return (
     <main
@@ -1103,27 +1108,26 @@ export default function NodeCanvas() {
           />
         )}
 
-        {separation && (
-          <div
-            className={`canvas-separation is-${separationDirection}`}
-            data-separation-direction={separationDirection}
-            style={{
-              left: separationLeft,
-              top: 0,
-              width: separationWidth,
-              height: SCENARIO.world.height,
-            }}
-            aria-hidden="true"
-          >
-            <span
-              className="canvas-separation-arrow"
-              style={{ top: separation.anchorY }}
-            >
-              {separationDirection === "right" ? "→" : "←"}
-            </span>
-          </div>
-        )}
       </div>
+
+      {separation && (
+        <div
+          className={`canvas-separation is-${separationDirection}`}
+          data-separation-direction={separationDirection}
+          style={{
+            left: separationScreenLeft,
+            width: separationScreenWidth,
+          }}
+          aria-hidden="true"
+        >
+          <span
+            className="canvas-separation-arrow"
+            style={{ top: separationScreenAnchorY }}
+          >
+            {separationDirection === "right" ? "→" : "←"}
+          </span>
+        </div>
+      )}
 
       <aside className="canvas-status" aria-live="polite">
         <span>{Math.round(zoom * 100)}%</span>
