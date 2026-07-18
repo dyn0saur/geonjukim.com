@@ -10,6 +10,10 @@ import {
   type PointerEvent as ReactPointerEvent,
   type WheelEvent as ReactWheelEvent,
 } from "react";
+import {
+  evaluateDataFlow,
+  type InputDataIssue,
+} from "../canvas/data-flow";
 import { HANA_HQ_SCENARIO } from "../canvas/hana-hq";
 import type {
   CanvasNode,
@@ -451,6 +455,11 @@ export default function NodeCanvas() {
     }
     return keys;
   }, [activeConnectionIds]);
+
+  const dataFlow = useMemo(
+    () => evaluateDataFlow(SCENARIO, activeConnectionIds),
+    [activeConnectionIds],
+  );
 
   const activeConnections = SCENARIO.connections.filter((connection) =>
     activeConnectionIds.has(connection.id),
@@ -1050,17 +1059,15 @@ export default function NodeCanvas() {
         </svg>
 
         {SCENARIO.nodes.map((node) => {
-          const missingInputs = node.ports.filter(
-            (port) =>
-              port.side === "in" &&
-              port.required &&
-              !connectedPortKeys.has(endpointKey({ nodeId: node.id, portId: port.id })),
-          );
+          const inputIssues = dataFlow.inputIssuesByNodeId.get(node.id) ?? [];
+          const dataValid = dataFlow.validNodeIds.has(node.id);
           const viewerReady =
             node.kind === "viewer" &&
             Boolean(
               node.readyWhen?.length &&
-                node.readyWhen.every((id) => activeConnectionIds.has(id)),
+                node.readyWhen.every((id) =>
+                  dataFlow.validConnectionIds.has(id),
+                ),
             );
 
           return (
@@ -1071,7 +1078,8 @@ export default function NodeCanvas() {
               size={sizes[node.id] ?? node.size}
               selected={selectedNodeIds.has(node.id)}
               connectedPortKeys={connectedPortKeys}
-              missingInputs={missingInputs}
+              inputIssues={inputIssues}
+              dataValid={dataValid}
               viewerReady={viewerReady}
               targetConnectionId={targetConnectionId}
               connectionAction={connectionAction}
@@ -1142,7 +1150,8 @@ function CanvasNodeView({
   size,
   selected,
   connectedPortKeys,
-  missingInputs,
+  inputIssues,
+  dataValid,
   viewerReady,
   targetConnectionId,
   connectionAction,
@@ -1155,7 +1164,8 @@ function CanvasNodeView({
   size: Size;
   selected: boolean;
   connectedPortKeys: ReadonlySet<string>;
-  missingInputs: readonly PortDefinition[];
+  inputIssues: readonly InputDataIssue[];
+  dataValid: boolean;
   viewerReady: boolean;
   targetConnectionId: string | null;
   connectionAction: ConnectionAction | null;
@@ -1187,7 +1197,15 @@ function CanvasNodeView({
         }
       : {}),
   } as CSSProperties;
-  const warning = missingInputs.length > 0;
+  const warning =
+    !dataValid && (node.kind === "processor" || node.kind === "connector");
+  const warningDescription = inputIssues
+    .map(({ port, reason }) =>
+      reason === "missing"
+        ? `${port.label ?? port.id} 입력이 필요합니다`
+        : `${port.label ?? port.id}에 유효한 데이터가 없습니다`,
+    )
+    .join(", ");
 
   if (node.kind === "scribble") {
     return (
@@ -1195,6 +1213,7 @@ function CanvasNodeView({
         className={`canvas-node scribble-node ${selected ? "is-selected" : ""}`}
         style={style}
         data-node-id={node.id}
+        data-data-valid={dataValid}
         aria-label={node.ariaLabel}
         onPointerDown={(event) => onMove(node.id, event)}
       >
@@ -1208,8 +1227,8 @@ function CanvasNodeView({
     "component-node",
     `${node.kind}-node`,
     selected ? "is-selected" : "",
-    node.kind === "processor" && warning ? "is-warning" : "",
-    node.kind === "processor" && !warning ? "is-normal" : "",
+    warning ? "is-warning" : "",
+    !warning ? "is-normal" : "",
     node.kind === "viewer" && viewerReady ? "is-ready" : "",
   ]
     .filter(Boolean)
@@ -1220,7 +1239,8 @@ function CanvasNodeView({
       className={nodeClassName}
       style={style}
       data-node-id={node.id}
-      aria-label={node.ariaLabel}
+      data-data-valid={dataValid}
+      aria-label={`${node.ariaLabel}${warning ? ", 데이터 경고" : ""}`}
       onPointerDown={(event) => onMove(node.id, event)}
     >
       {node.kind === "processor" && (
@@ -1247,15 +1267,15 @@ function CanvasNodeView({
               </span>
             ) : null,
           )}
-          {warning && (
+          {warning && warningDescription && (
             <button
               className="warning-indicator"
               type="button"
-              aria-label={`경고: ${missingInputs.map((port) => port.label).join(", ")} 입력이 필요합니다`}
+              aria-label={`경고: ${warningDescription}`}
               onPointerDown={(event) => event.stopPropagation()}
             >
               <span className="warning-tooltip" role="tooltip">
-                {missingInputs.map((port) => port.label).join(", ")} 입력이 필요합니다
+                {warningDescription}
               </span>
             </button>
           )}
