@@ -38,8 +38,10 @@ test("server-renders the HANA HQ project canvas", async () => {
   assert.match(html, /Wood veneer application/);
   assert.match(html, /Laminated timber fabrication followed by steam bending/);
   assert.match(html, /AWAITING 3D MODEL/);
-  assert.match(html, /연결 단계[\s\S]{0,40}0[\s\S]{0,40}\/[\s\S]{0,40}4/);
+  assert.doesNotMatch(html, /연결 단계/);
+  assert.match(html, /좌클릭 드래그: 영역 선택/);
   assert.match(html, /우클릭 드래그: 이동/);
+  assert.match(html, /south-east 모서리에서 크기 조절/);
   assert.match(html, /deconstruct-ref-surface\.png/);
   assert.match(html, /fabrication-requirements\.png/);
   assert.match(html, /construct-wood-panel\.png/);

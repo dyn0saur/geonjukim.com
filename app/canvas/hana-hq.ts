@@ -1,10 +1,85 @@
-import { defineScenario } from "./model";
+import {
+  defineScenario,
+  type ConnectorNode,
+  type PanelNode,
+  type PortDefinition,
+} from "./model";
+
+const CONNECTOR_HEIGHT = 86;
+
+function connectorWidth(text: string) {
+  return Math.max(210, text.length * 23 + 64);
+}
+
+function connector({
+  id,
+  text,
+  x,
+  y,
+  ports,
+}: {
+  id: string;
+  text: string;
+  x: number;
+  y: number;
+  ports: readonly PortDefinition[];
+}): ConnectorNode {
+  return {
+    id,
+    kind: "connector",
+    text,
+    ariaLabel: `${text} 연결 컴포넌트`,
+    position: { x, y },
+    size: { width: connectorWidth(text), height: CONNECTOR_HEIGHT },
+    ports,
+  };
+}
+
+function panel({
+  id,
+  value,
+  ariaLabel,
+  x,
+  y,
+  width,
+  height,
+  hasOutput = false,
+}: {
+  id: string;
+  value: string;
+  ariaLabel: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  hasOutput?: boolean;
+}): PanelNode {
+  return {
+    id,
+    kind: "panel",
+    value,
+    ariaLabel,
+    position: { x, y },
+    size: { width, height },
+    ports: [
+      { id: "in", side: "in", offset: 0.5 },
+      ...(hasOutput
+        ? ([{ id: "out", side: "out", offset: 0.5 }] as const)
+        : []),
+    ],
+  };
+}
+
+const bidirectionalConnectorPorts = [
+  { id: "in", side: "in", offset: 0.5 },
+  { id: "out", side: "out", offset: 0.5 },
+] as const;
 
 export const HANA_HQ_SCENARIO = defineScenario({
   id: "hana-hq",
   ariaLabel: "HANA HQ Grasshopper 스타일 프로젝트 캔버스",
-  world: { width: 12200, height: 2400 },
-  initialFocus: { x: 0, y: 1250 },
+  world: { width: 16400, height: 3600 },
+  initialFocus: { x: 0, y: 1800 },
   nodes: [
     {
       id: "hana-title",
@@ -12,7 +87,7 @@ export const HANA_HQ_SCENARIO = defineScenario({
       text: "HANA HQ",
       ariaLabel: "HANA HQ 프로젝트 제목",
       position: { x: 180, y: 170 },
-      size: { width: 940, height: 180 },
+      size: { width: 1100, height: 220 },
       ports: [],
     },
     {
@@ -22,45 +97,38 @@ export const HANA_HQ_SCENARIO = defineScenario({
       caption: "REFERENCE SURFACE",
       emptyMessage: "RHINO MODEL PLACEHOLDER",
       ariaLabel: "비어 있는 Ref. Surface 모델 뷰어",
-      position: { x: 180, y: 720 },
-      size: { width: 720, height: 720 },
+      position: { x: 180, y: 900 },
+      size: { width: 1800, height: 1800 },
       ports: [{ id: "model", side: "out", offset: 0.5 }],
     },
-    {
+    connector({
       id: "ref-srf",
-      kind: "connector",
       text: "Ref. SRF",
-      ariaLabel: "Ref. SRF 연결 컴포넌트",
-      position: { x: 1100, y: 995 },
-      size: { width: 430, height: 170 },
-      ports: [
-        { id: "in", side: "in", offset: 0.5 },
-        { id: "out", side: "out", offset: 0.5 },
-      ],
-    },
-    {
+      x: 2250,
+      y: 1561,
+      ports: bidirectionalConnectorPorts,
+    }),
+    connector({
       id: "architectural-design",
-      kind: "connector",
       text: "Architectural Design",
-      ariaLabel: "Architectural Design 가상 연결 컴포넌트",
-      position: { x: 1580, y: 1370 },
-      size: { width: 480, height: 170 },
+      x: 2430,
+      y: 1993,
       ports: [{ id: "out", side: "out", offset: 0.5 }],
-    },
+    }),
     {
       id: "deconstruct",
       kind: "processor",
       title: "DECONSTRUCT REF. SURFACE",
       icon: "/assets/hana-hq/icons/deconstruct-ref-surface.png",
       ariaLabel: "Deconstruct Ref. Surface 주요 컴포넌트",
-      position: { x: 2100, y: 600 },
-      size: { width: 760, height: 980 },
+      position: { x: 3150, y: 1270 },
+      size: { width: 950, height: 1000 },
       ports: [
-        { id: "ref-srf", side: "in", offset: 0.24, label: "Ref. SRF", required: true },
+        { id: "ref-srf", side: "in", offset: 0.33, label: "Ref. SRF", required: true },
         {
           id: "architectural-design",
           side: "in",
-          offset: 0.76,
+          offset: 0.75,
           label: "Architectural Design",
           required: true,
         },
@@ -71,196 +139,163 @@ export const HANA_HQ_SCENARIO = defineScenario({
         { id: "t-bar-system", side: "out", offset: 0.86, label: "T-Bar System" },
       ],
     },
-    {
+    connector({
       id: "wood-panel",
-      kind: "connector",
       text: "Wood Panel",
-      ariaLabel: "Wood Panel 연결 컴포넌트",
-      position: { x: 3180, y: 662 },
-      size: { width: 450, height: 150 },
-      ports: [
-        { id: "in", side: "in", offset: 0.5 },
-        { id: "out", side: "out", offset: 0.5 },
-      ],
-    },
-    {
+      x: 4350,
+      y: 1367,
+      ports: bidirectionalConnectorPorts,
+    }),
+    connector({
       id: "wood-block",
-      kind: "connector",
       text: "Wood Block",
-      ariaLabel: "Wood Block 연결 컴포넌트",
-      position: { x: 3180, y: 838 },
-      size: { width: 450, height: 150 },
-      ports: [
-        { id: "in", side: "in", offset: 0.5 },
-        { id: "out", side: "out", offset: 0.5 },
-      ],
-    },
-    {
+      x: 4350,
+      y: 1547,
+      ports: bidirectionalConnectorPorts,
+    }),
+    connector({
       id: "corner-reveal",
-      kind: "connector",
       text: "Corner Reveal",
-      ariaLabel: "Corner Reveal 연결 컴포넌트",
-      position: { x: 3180, y: 1015 },
-      size: { width: 450, height: 150 },
-      ports: [
-        { id: "in", side: "in", offset: 0.5 },
-        { id: "out", side: "out", offset: 0.5 },
-      ],
-    },
-    {
+      x: 4350,
+      y: 1727,
+      ports: bidirectionalConnectorPorts,
+    }),
+    connector({
       id: "base-board",
-      kind: "connector",
       text: "Base Board",
-      ariaLabel: "Base Board 연결 컴포넌트",
-      position: { x: 3180, y: 1191 },
-      size: { width: 450, height: 150 },
-      ports: [
-        { id: "in", side: "in", offset: 0.5 },
-        { id: "out", side: "out", offset: 0.5 },
-      ],
-    },
-    {
+      x: 4350,
+      y: 1907,
+      ports: bidirectionalConnectorPorts,
+    }),
+    connector({
       id: "t-bar-system",
-      kind: "connector",
       text: "T-Bar System",
-      ariaLabel: "T-Bar System 연결 컴포넌트",
-      position: { x: 3180, y: 1368 },
-      size: { width: 450, height: 150 },
-      ports: [
-        { id: "in", side: "in", offset: 0.5 },
-        { id: "out", side: "out", offset: 0.5 },
-      ],
-    },
+      x: 4350,
+      y: 2087,
+      ports: bidirectionalConnectorPorts,
+    }),
     {
       id: "fabrication",
       kind: "processor",
       title: "FABRICATION & CONSTRUCTION REQUIREMENTS",
       icon: "/assets/hana-hq/icons/fabrication-requirements.png",
       ariaLabel: "Fabrication and Construction Requirements 주요 컴포넌트",
-      position: { x: 3980, y: 360 },
-      size: { width: 860, height: 1120 },
+      position: { x: 5450, y: 1170 },
+      size: { width: 1000, height: 1050 },
       ports: [
-        { id: "wood-panel", side: "in", offset: 0.34, label: "Wood Panel", required: true },
-        { id: "finish-method", side: "out", offset: 0.15, label: "Finish Method" },
+        { id: "wood-panel", side: "in", offset: 0.5, label: "Wood Panel", required: true },
+        { id: "finish-method", side: "out", offset: 0.13, label: "Finish Method" },
         {
           id: "fabrication-method",
           side: "out",
-          offset: 0.31,
+          offset: 0.29,
           label: "Fabrication Method",
         },
         {
           id: "panel-thickness",
           side: "out",
-          offset: 0.5,
-          label: "Panel Thickness (mm)",
+          offset: 0.42,
+          label: "Panel Thickness(mm)",
         },
-        { id: "panel-width", side: "out", offset: 0.63, label: "Panel Width (mm)" },
-        { id: "joint-width", side: "out", offset: 0.76, label: "Joint Width (mm)" },
-        { id: "max-length", side: "out", offset: 0.89, label: "Max Length (mm)" },
+        { id: "panel-width", side: "out", offset: 0.58, label: "Panel Width(mm)" },
+        { id: "joint-width", side: "out", offset: 0.74, label: "Joint Width(mm)" },
+        { id: "max-length", side: "out", offset: 0.9, label: "Max Length(mm)" },
       ],
     },
-    {
+    panel({
       id: "finish-method",
-      kind: "panel",
       value: "Wood veneer application",
       ariaLabel: "Finish Method 패널: Wood veneer application",
-      position: { x: 5200, y: 448 },
-      size: { width: 1040, height: 160 },
-      ports: [{ id: "in", side: "in", offset: 0.5 }],
-    },
-    {
+      x: 6750,
+      y: 1246,
+      width: 1100,
+      height: 120,
+    }),
+    panel({
       id: "fabrication-method",
-      kind: "panel",
       value: "Laminated timber fabrication followed by steam bending",
       ariaLabel: "Fabrication Method 설명 패널",
-      position: { x: 5200, y: 650 },
-      size: { width: 1180, height: 200 },
-      ports: [{ id: "in", side: "in", offset: 0.5 }],
-    },
-    {
+      x: 6750,
+      y: 1389,
+      width: 1350,
+      height: 170,
+    }),
+    panel({
       id: "panel-thickness",
-      kind: "panel",
       value: "20",
       ariaLabel: "Panel Thickness 20 millimeters 패널",
-      position: { x: 5200, y: 900 },
-      size: { width: 390, height: 140 },
-      ports: [
-        { id: "in", side: "in", offset: 0.5 },
-        { id: "out", side: "out", offset: 0.5 },
-      ],
-    },
-    {
+      x: 7350,
+      y: 1554,
+      width: 270,
+      height: 110,
+      hasOutput: true,
+    }),
+    panel({
       id: "panel-width",
-      kind: "panel",
       value: "200",
       ariaLabel: "Panel Width 200 millimeters 패널",
-      position: { x: 5200, y: 1070 },
-      size: { width: 390, height: 140 },
-      ports: [
-        { id: "in", side: "in", offset: 0.5 },
-        { id: "out", side: "out", offset: 0.5 },
-      ],
-    },
-    {
+      x: 7350,
+      y: 1724,
+      width: 270,
+      height: 110,
+      hasOutput: true,
+    }),
+    panel({
       id: "joint-width",
-      kind: "panel",
       value: "6",
       ariaLabel: "Joint Width 6 millimeters 패널",
-      position: { x: 5200, y: 1240 },
-      size: { width: 390, height: 140 },
-      ports: [
-        { id: "in", side: "in", offset: 0.5 },
-        { id: "out", side: "out", offset: 0.5 },
-      ],
-    },
-    {
+      x: 7350,
+      y: 1894,
+      width: 270,
+      height: 110,
+      hasOutput: true,
+    }),
+    panel({
       id: "max-length",
-      kind: "panel",
       value: "2400",
       ariaLabel: "Max Length 2400 millimeters 패널",
-      position: { x: 5200, y: 1410 },
-      size: { width: 390, height: 140 },
-      ports: [
-        { id: "in", side: "in", offset: 0.5 },
-        { id: "out", side: "out", offset: 0.5 },
-      ],
-    },
+      x: 7350,
+      y: 2038,
+      width: 270,
+      height: 110,
+      hasOutput: true,
+    }),
     {
       id: "construct",
       kind: "processor",
       title: "CONSTRUCT WOOD PANEL 3D",
       icon: "/assets/hana-hq/icons/construct-wood-panel.png",
       ariaLabel: "Construct Wood Panel 3D 주요 컴포넌트",
-      position: { x: 6550, y: 650 },
-      size: { width: 900, height: 900 },
+      position: { x: 8350, y: 1320 },
+      size: { width: 950, height: 850 },
       ports: [
-        { id: "wood-panel", side: "in", offset: 0.18, label: "Wood Panel", required: true },
+        { id: "wood-panel", side: "in", offset: 0.1, label: "Wood Panel", required: true },
         {
           id: "panel-thickness",
           side: "in",
-          offset: 0.4,
-          label: "Panel Thickness (mm)",
+          offset: 0.34,
+          label: "Panel Thickness(mm)",
           required: true,
         },
         {
           id: "panel-width",
           side: "in",
-          offset: 0.55,
-          label: "Panel Width (mm)",
+          offset: 0.54,
+          label: "Panel Width(mm)",
           required: true,
         },
         {
           id: "joint-width",
           side: "in",
-          offset: 0.7,
-          label: "Joint Width (mm)",
+          offset: 0.74,
+          label: "Joint Width(mm)",
           required: true,
         },
         {
           id: "max-length",
           side: "in",
-          offset: 0.85,
-          label: "Max Length (mm)",
+          offset: 0.91,
+          label: "Max Length(mm)",
           required: true,
         },
         { id: "model", side: "out", offset: 0.5, label: "3D Model" },
@@ -275,33 +310,28 @@ export const HANA_HQ_SCENARIO = defineScenario({
       readyMessage: "3D MODEL LINKED",
       readyWhen: ["construct-to-model-viewer"],
       ariaLabel: "비어 있는 3D Model 뷰어",
-      position: { x: 7900, y: 760 },
-      size: { width: 680, height: 680 },
+      position: { x: 9700, y: 895 },
+      size: { width: 1700, height: 1700 },
       ports: [
         { id: "in", side: "in", offset: 0.5 },
         { id: "out", side: "out", offset: 0.5 },
       ],
     },
-    {
+    connector({
       id: "model-reference",
-      kind: "connector",
       text: "3D Model",
-      ariaLabel: "3D Model 연결 컴포넌트",
-      position: { x: 8870, y: 1015 },
-      size: { width: 440, height: 170 },
-      ports: [
-        { id: "in", side: "in", offset: 0.5 },
-        { id: "out", side: "out", offset: 0.5 },
-      ],
-    },
+      x: 11650,
+      y: 1702,
+      ports: bidirectionalConnectorPorts,
+    }),
     {
       id: "generate-drawings",
       kind: "processor",
       title: "GENERATE 2D DRAWINGS",
       icon: "/assets/hana-hq/icons/generate-2d-drawings.png",
       ariaLabel: "Generate 2D Drawings 주요 컴포넌트",
-      position: { x: 9900, y: 780 },
-      size: { width: 820, height: 720 },
+      position: { x: 12500, y: 1400 },
+      size: { width: 850, height: 690 },
       ports: [
         { id: "model", side: "in", offset: 0.5, label: "3D Model", required: true },
         { id: "drawing", side: "out", offset: 0.5, label: "2D Drawing" },
@@ -316,8 +346,8 @@ export const HANA_HQ_SCENARIO = defineScenario({
       readyMessage: "2D DRAWING READY",
       readyWhen: ["model-reference-to-generate"],
       ariaLabel: "비어 있는 2D Drawing 이미지 뷰어",
-      position: { x: 11200, y: 760 },
-      size: { width: 720, height: 720 },
+      position: { x: 14150, y: 845 },
+      size: { width: 1800, height: 1800 },
       ports: [{ id: "in", side: "in", offset: 0.5 }],
     },
   ],

@@ -17,12 +17,16 @@ import type {
   ConnectionEndpoint,
   Point,
   PortDefinition,
+  Size,
   ViewerNode,
 } from "../canvas/model";
 
 type Positions = Record<string, Point>;
+type Sizes = Record<string, Size>;
 type Guide = { x?: number; y?: number; kind?: "edge" | "port" };
 type ConnectionAction = "add" | "remove";
+type ResizeCorner = "north-west" | "north-east" | "south-west" | "south-east";
+type Fence = { start: Point; current: Point };
 
 type Interaction =
   | { type: "idle" }
@@ -33,11 +37,28 @@ type Interaction =
       startPan: Point;
     }
   | {
+      type: "fence";
+      pointerId: number;
+      startClient: Point;
+      start: Point;
+      current: Point;
+    }
+  | {
       type: "move";
       pointerId: number;
+      primaryNodeId: string;
+      nodeIds: readonly string[];
+      startClient: Point;
+      startPositions: Positions;
+    }
+  | {
+      type: "resize";
+      pointerId: number;
       nodeId: string;
+      corner: ResizeCorner;
       startClient: Point;
       startPosition: Point;
+      startSize: Size;
     }
   | {
       type: "connect";
@@ -53,16 +74,28 @@ const MAX_ZOOM = 3;
 const GRID_WIDTH = 15 * 40;
 const GRID_HEIGHT = 5 * 40;
 const SNAP_SCREEN_DISTANCE = 9;
+const MIN_VIEWER_SIZE = 420;
 
 const INITIAL_POSITIONS = Object.fromEntries(
   SCENARIO.nodes.map((node) => [node.id, node.position]),
 ) as Positions;
+
+const INITIAL_SIZES = Object.fromEntries(
+  SCENARIO.nodes.map((node) => [node.id, node.size]),
+) as Sizes;
 
 const INITIAL_CONNECTION_IDS = new Set(
   SCENARIO.connections
     .filter((connection) => connection.initiallyConnected)
     .map((connection) => connection.id),
 );
+
+const RESIZE_CORNERS: readonly ResizeCorner[] = [
+  "north-west",
+  "north-east",
+  "south-west",
+  "south-east",
+];
 
 function clamp(value: number, minimum: number, maximum: number) {
   return Math.min(maximum, Math.max(minimum, value));
@@ -82,9 +115,32 @@ function bezierPath(from: Point, to: Point) {
   return `M ${from.x} ${from.y} C ${from.x + reach * direction} ${from.y}, ${to.x - reach * direction} ${to.y}, ${to.x} ${to.y}`;
 }
 
+function normalizeFence(fence: Fence) {
+  return {
+    left: Math.min(fence.start.x, fence.current.x),
+    top: Math.min(fence.start.y, fence.current.y),
+    right: Math.max(fence.start.x, fence.current.x),
+    bottom: Math.max(fence.start.y, fence.current.y),
+  };
+}
+
+function intersectsFence(
+  fence: ReturnType<typeof normalizeFence>,
+  position: Point,
+  size: Size,
+) {
+  return (
+    position.x <= fence.right &&
+    position.x + size.width >= fence.left &&
+    position.y <= fence.bottom &&
+    position.y + size.height >= fence.top
+  );
+}
+
 function portPoint(
   endpoint: ConnectionEndpoint,
   positions: Positions,
+  sizes: Sizes,
   nodesById: ReadonlyMap<string, CanvasNode>,
 ): Point {
   const node = nodesById.get(endpoint.nodeId);
@@ -92,23 +148,25 @@ function portPoint(
   if (!node || !port) return { x: 0, y: 0 };
 
   const position = positions[node.id] ?? node.position;
+  const size = sizes[node.id] ?? node.size;
   return {
-    x: position.x + (port.side === "out" ? node.size.width : 0),
-    y: position.y + node.size.height * port.offset,
+    x: position.x + (port.side === "out" ? size.width : 0),
+    y: position.y + size.height * port.offset,
   };
 }
 
 function getSnap(
   movingNode: CanvasNode,
+  movingSize: Size,
   raw: Point,
   positions: Positions,
+  sizes: Sizes,
   threshold: number,
+  excludedNodeIds: ReadonlySet<string>,
 ) {
   const result = { ...raw };
   let bestX: { delta: number; guide: number } | undefined;
-  let bestY:
-    | { delta: number; guide: number; kind: "edge" | "port" }
-    | undefined;
+  let bestY: { delta: number; guide: number; kind: "edge" | "port" } | undefined;
 
   const considerX = (delta: number, guide: number) => {
     if (
@@ -133,15 +191,16 @@ function getSnap(
   };
 
   for (const other of SCENARIO.nodes) {
-    if (other.id === movingNode.id) continue;
+    if (excludedNodeIds.has(other.id)) continue;
     const otherPosition = positions[other.id] ?? other.position;
+    const otherSize = sizes[other.id] ?? other.size;
 
     const movingLeft = raw.x;
-    const movingCenterX = raw.x + movingNode.size.width / 2;
-    const movingRight = raw.x + movingNode.size.width;
+    const movingCenterX = raw.x + movingSize.width / 2;
+    const movingRight = raw.x + movingSize.width;
     const otherLeft = otherPosition.x;
-    const otherCenterX = otherPosition.x + other.size.width / 2;
-    const otherRight = otherPosition.x + other.size.width;
+    const otherCenterX = otherPosition.x + otherSize.width / 2;
+    const otherRight = otherPosition.x + otherSize.width;
 
     considerX(otherLeft - movingLeft, otherLeft);
     considerX(otherCenterX - movingCenterX, otherCenterX);
@@ -150,11 +209,11 @@ function getSnap(
     considerX(otherRight - movingLeft, otherRight);
 
     const movingTop = raw.y;
-    const movingCenterY = raw.y + movingNode.size.height / 2;
-    const movingBottom = raw.y + movingNode.size.height;
+    const movingCenterY = raw.y + movingSize.height / 2;
+    const movingBottom = raw.y + movingSize.height;
     const otherTop = otherPosition.y;
-    const otherCenterY = otherPosition.y + other.size.height / 2;
-    const otherBottom = otherPosition.y + other.size.height;
+    const otherCenterY = otherPosition.y + otherSize.height / 2;
+    const otherBottom = otherPosition.y + otherSize.height;
 
     considerY(otherTop - movingTop, otherTop);
     considerY(otherCenterY - movingCenterY, otherCenterY);
@@ -163,10 +222,9 @@ function getSnap(
     considerY(otherBottom - movingTop, otherBottom);
 
     for (const movingPort of movingNode.ports) {
-      const movingPortY = raw.y + movingNode.size.height * movingPort.offset;
+      const movingPortY = raw.y + movingSize.height * movingPort.offset;
       for (const otherPort of other.ports) {
-        const otherPortY =
-          otherPosition.y + other.size.height * otherPort.offset;
+        const otherPortY = otherPosition.y + otherSize.height * otherPort.offset;
         considerY(otherPortY - movingPortY, otherPortY, "port");
       }
     }
@@ -190,6 +248,7 @@ function closestCandidate(
   candidates: readonly ConnectionDefinition[],
   current: Point,
   positions: Positions,
+  sizes: Sizes,
   nodesById: ReadonlyMap<string, CanvasNode>,
 ) {
   let closest:
@@ -197,7 +256,7 @@ function closestCandidate(
     | undefined;
 
   for (const connection of candidates) {
-    const target = portPoint(connection.to, positions, nodesById);
+    const target = portPoint(connection.to, positions, sizes, nodesById);
     const targetDistance = distance(current, target);
     if (!closest || targetDistance < closest.distance) {
       closest = { connection, target, distance: targetDistance };
@@ -216,14 +275,18 @@ export default function NodeCanvas() {
     [],
   );
   const [positions, setPositions] = useState<Positions>(INITIAL_POSITIONS);
+  const [sizes, setSizes] = useState<Sizes>(INITIAL_SIZES);
   const [activeConnectionIds, setActiveConnectionIds] = useState(
     () => new Set(INITIAL_CONNECTION_IDS),
   );
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [selectedNodeIds, setSelectedNodeIds] = useState<Set<string>>(
+    () => new Set(),
+  );
   const [pan, setPan] = useState<Point>({ x: 64, y: 80 });
   const [zoom, setZoom] = useState(1);
   const [mode, setMode] = useState<Interaction["type"]>("idle");
   const [guide, setGuide] = useState<Guide>({});
+  const [fence, setFence] = useState<Fence | null>(null);
   const [connectingFromPoint, setConnectingFromPoint] = useState<Point | null>(
     null,
   );
@@ -262,9 +325,6 @@ export default function NodeCanvas() {
   const mutableConnections = SCENARIO.connections.filter(
     (connection) => connection.mutable,
   );
-  const completedSteps = mutableConnections.filter((connection) =>
-    activeConnectionIds.has(connection.id),
-  ).length;
 
   const screenToWorld = (clientX: number, clientY: number): Point => {
     const bounds = canvasRef.current?.getBoundingClientRect();
@@ -278,7 +338,7 @@ export default function NodeCanvas() {
     try {
       canvasRef.current?.setPointerCapture(pointerId);
     } catch {
-      // Pointer capture may fail when the gesture ends between frames.
+      // Pointer capture may fail when a gesture ends between frames.
     }
   };
 
@@ -297,15 +357,54 @@ export default function NodeCanvas() {
     const node = nodesById.get(nodeId);
     if (!node) return;
 
-    setSelectedNodeId(nodeId);
+    const nodeIds = selectedNodeIds.has(nodeId)
+      ? [...selectedNodeIds]
+      : [nodeId];
+    if (!selectedNodeIds.has(nodeId)) {
+      setSelectedNodeIds(new Set([nodeId]));
+    }
+
+    const startPositions = Object.fromEntries(
+      nodeIds.map((id) => {
+        const selectedNode = nodesById.get(id);
+        return [id, positions[id] ?? selectedNode?.position ?? { x: 0, y: 0 }];
+      }),
+    ) as Positions;
+
     interactionRef.current = {
       type: "move",
       pointerId: event.pointerId,
-      nodeId,
+      primaryNodeId: nodeId,
+      nodeIds,
       startClient: { x: event.clientX, y: event.clientY },
-      startPosition: positions[nodeId] ?? node.position,
+      startPositions,
     };
     setMode("move");
+    capturePointer(event.pointerId);
+  };
+
+  const beginResize = (
+    nodeId: string,
+    corner: ResizeCorner,
+    event: ReactPointerEvent,
+  ) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const node = nodesById.get(nodeId);
+    if (!node || node.kind !== "viewer") return;
+
+    setSelectedNodeIds(new Set([nodeId]));
+    interactionRef.current = {
+      type: "resize",
+      pointerId: event.pointerId,
+      nodeId,
+      corner,
+      startClient: { x: event.clientX, y: event.clientY },
+      startPosition: positions[nodeId] ?? node.position,
+      startSize: sizes[nodeId] ?? node.size,
+    };
+    setMode("resize");
     capturePointer(event.pointerId);
   };
 
@@ -328,7 +427,7 @@ export default function NodeCanvas() {
     });
     if (!hasCandidate) return;
 
-    const start = portPoint(from, positions, nodesById);
+    const start = portPoint(from, positions, sizes, nodesById);
     interactionRef.current = {
       type: "connect",
       pointerId: event.pointerId,
@@ -336,7 +435,7 @@ export default function NodeCanvas() {
       current: start,
       action,
     };
-    setSelectedNodeId(nodeId);
+    setSelectedNodeIds(new Set([nodeId]));
     setMode("connect");
     setConnectingFromPoint(start);
     setConnectingPoint(start);
@@ -346,7 +445,19 @@ export default function NodeCanvas() {
 
   const handleCanvasPointerDown = (event: ReactPointerEvent<HTMLElement>) => {
     if (event.button === 0 && event.target === event.currentTarget) {
-      setSelectedNodeId(null);
+      event.preventDefault();
+      const start = screenToWorld(event.clientX, event.clientY);
+      interactionRef.current = {
+        type: "fence",
+        pointerId: event.pointerId,
+        startClient: { x: event.clientX, y: event.clientY },
+        start,
+        current: start,
+      };
+      setSelectedNodeIds(new Set());
+      setFence({ start, current: start });
+      setMode("fence");
+      capturePointer(event.pointerId);
       return;
     }
     if (event.button !== 2) return;
@@ -390,28 +501,95 @@ export default function NodeCanvas() {
       return;
     }
 
+    if (interaction.type === "fence") {
+      const current = screenToWorld(event.clientX, event.clientY);
+      const nextFence = { start: interaction.start, current };
+      interactionRef.current = { ...interaction, current };
+      setFence(nextFence);
+      const normalized = normalizeFence(nextFence);
+      setSelectedNodeIds(
+        new Set(
+          SCENARIO.nodes
+            .filter((node) =>
+              intersectsFence(
+                normalized,
+                positions[node.id] ?? node.position,
+                sizes[node.id] ?? node.size,
+              ),
+            )
+            .map((node) => node.id),
+        ),
+      );
+      return;
+    }
+
     if (interaction.type === "move") {
-      const movingNode = nodesById.get(interaction.nodeId);
+      const movingNode = nodesById.get(interaction.primaryNodeId);
       if (!movingNode) return;
+      const startPosition = interaction.startPositions[interaction.primaryNodeId];
+      const movingSize = sizes[interaction.primaryNodeId] ?? movingNode.size;
       const raw = {
-        x:
-          interaction.startPosition.x +
-          (event.clientX - interaction.startClient.x) / scale,
-        y:
-          interaction.startPosition.y +
-          (event.clientY - interaction.startClient.y) / scale,
+        x: startPosition.x + (event.clientX - interaction.startClient.x) / scale,
+        y: startPosition.y + (event.clientY - interaction.startClient.y) / scale,
       };
+      const excludedNodeIds = new Set(interaction.nodeIds);
       const snapped = getSnap(
         movingNode,
+        movingSize,
         raw,
         positions,
+        sizes,
         SNAP_SCREEN_DISTANCE / scale,
+        excludedNodeIds,
       );
+      const delta = {
+        x: snapped.position.x - startPosition.x,
+        y: snapped.position.y - startPosition.y,
+      };
+      setPositions((current) => {
+        const next = { ...current };
+        for (const nodeId of interaction.nodeIds) {
+          const start = interaction.startPositions[nodeId];
+          next[nodeId] = { x: start.x + delta.x, y: start.y + delta.y };
+        }
+        return next;
+      });
+      setGuide(snapped.guide);
+      return;
+    }
+
+    if (interaction.type === "resize") {
+      const delta = {
+        x: (event.clientX - interaction.startClient.x) / scale,
+        y: (event.clientY - interaction.startClient.y) / scale,
+      };
+      const west = interaction.corner.endsWith("west");
+      const north = interaction.corner.startsWith("north");
+      const width = clamp(
+        interaction.startSize.width + (west ? -delta.x : delta.x),
+        MIN_VIEWER_SIZE,
+        SCENARIO.world.width,
+      );
+      const height = clamp(
+        interaction.startSize.height + (north ? -delta.y : delta.y),
+        MIN_VIEWER_SIZE,
+        SCENARIO.world.height,
+      );
+      setSizes((current) => ({
+        ...current,
+        [interaction.nodeId]: { width, height },
+      }));
       setPositions((current) => ({
         ...current,
-        [interaction.nodeId]: snapped.position,
+        [interaction.nodeId]: {
+          x: west
+            ? interaction.startPosition.x + interaction.startSize.width - width
+            : interaction.startPosition.x,
+          y: north
+            ? interaction.startPosition.y + interaction.startSize.height - height
+            : interaction.startPosition.y,
+        },
       }));
-      setGuide(snapped.guide);
       return;
     }
 
@@ -422,6 +600,7 @@ export default function NodeCanvas() {
       getConnectionCandidates(interaction),
       current,
       positions,
+      sizes,
       nodesById,
     );
     setTargetConnectionId(
@@ -435,12 +614,20 @@ export default function NodeCanvas() {
       return;
     }
 
+    if (
+      interaction.type === "fence" &&
+      distance(interaction.startClient, { x: event.clientX, y: event.clientY }) < 4
+    ) {
+      setSelectedNodeIds(new Set());
+    }
+
     if (interaction.type === "connect") {
       const end = screenToWorld(event.clientX, event.clientY);
       const closest = closestCandidate(
         getConnectionCandidates(interaction),
         end,
         positions,
+        sizes,
         nodesById,
       );
       if (closest && closest.distance <= 30 / scale) {
@@ -460,6 +647,7 @@ export default function NodeCanvas() {
     interactionRef.current = { type: "idle" };
     setMode("idle");
     setGuide({});
+    setFence(null);
     setConnectingFromPoint(null);
     setConnectingPoint(null);
     setTargetConnectionId(null);
@@ -493,11 +681,12 @@ export default function NodeCanvas() {
     });
   };
 
-  const worldStyle: CSSProperties = {
+  const worldStyle = {
     width: SCENARIO.world.width,
     height: SCENARIO.world.height,
     transform: `translate3d(${pan.x}px, ${pan.y}px, 0) scale(${scale})`,
-  };
+    "--world-css-pixel": `${1 / scale}px`,
+  } as CSSProperties;
 
   const gridStyle = {
     backgroundSize: `${GRID_WIDTH * scale}px ${GRID_HEIGHT * scale}px`,
@@ -507,9 +696,10 @@ export default function NodeCanvas() {
 
   const connectionGeometry = activeConnections.map((connection) => ({
     connection,
-    from: portPoint(connection.from, positions, nodesById),
-    to: portPoint(connection.to, positions, nodesById),
+    from: portPoint(connection.from, positions, sizes, nodesById),
+    to: portPoint(connection.to, positions, sizes, nodesById),
   }));
+  const normalizedFence = fence ? normalizeFence(fence) : null;
 
   return (
     <main
@@ -556,9 +746,9 @@ export default function NodeCanvas() {
               <path d="M 0 0 L 42 16 L 0 32 z" fill="#9d1c1c" />
             </marker>
             {connectionGeometry.map(({ connection, from, to }) => {
-              const selectedAtFrom = selectedNodeId === connection.from.nodeId;
-              const selectedAtTo = selectedNodeId === connection.to.nodeId;
-              if (!selectedAtFrom && !selectedAtTo) return null;
+              const selectedAtFrom = selectedNodeIds.has(connection.from.nodeId);
+              const selectedAtTo = selectedNodeIds.has(connection.to.nodeId);
+              if (selectedAtFrom === selectedAtTo) return null;
               const start = selectedAtFrom ? from : to;
               const end = selectedAtFrom ? to : from;
               return (
@@ -580,19 +770,20 @@ export default function NodeCanvas() {
           </defs>
 
           {connectionGeometry.map(({ connection, from, to }) => {
-            const isSelected =
-              selectedNodeId === connection.from.nodeId ||
-              selectedNodeId === connection.to.nodeId;
+            const selectedAtFrom = selectedNodeIds.has(connection.from.nodeId);
+            const selectedAtTo = selectedNodeIds.has(connection.to.nodeId);
+            const stroke =
+              selectedAtFrom && selectedAtTo
+                ? "#86db36"
+                : selectedAtFrom || selectedAtTo
+                  ? `url(#selected-${connection.id})`
+                  : undefined;
             return (
               <path
                 key={connection.id}
                 className="wire"
                 d={bezierPath(from, to)}
-                style={
-                  isSelected
-                    ? { stroke: `url(#selected-${connection.id})` }
-                    : undefined
-                }
+                style={stroke ? { stroke } : undefined}
               />
             );
           })}
@@ -615,14 +806,14 @@ export default function NodeCanvas() {
               x1={guide.x}
               x2={guide.x}
               y1="-4000"
-              y2="6000"
+              y2="7000"
             />
           )}
           {guide.y !== undefined && (
             <line
               className={`snap-guide ${guide.kind === "port" ? "is-port-guide" : ""}`}
               x1="-4000"
-              x2="16000"
+              x2="20000"
               y1={guide.y}
               y2={guide.y}
             />
@@ -648,7 +839,8 @@ export default function NodeCanvas() {
               key={node.id}
               node={node}
               position={positions[node.id] ?? node.position}
-              selected={selectedNodeId === node.id}
+              size={sizes[node.id] ?? node.size}
+              selected={selectedNodeIds.has(node.id)}
               connectedPortKeys={connectedPortKeys}
               missingInputs={missingInputs}
               viewerReady={viewerReady}
@@ -656,15 +848,29 @@ export default function NodeCanvas() {
               connectionAction={connectionAction}
               onMove={beginMove}
               onConnect={beginConnection}
+              onResize={beginResize}
             />
           );
         })}
+
+        {normalizedFence && (
+          <div
+            className="selection-fence"
+            style={{
+              left: normalizedFence.left,
+              top: normalizedFence.top,
+              width: normalizedFence.right - normalizedFence.left,
+              height: normalizedFence.bottom - normalizedFence.top,
+            }}
+            aria-hidden="true"
+          />
+        )}
       </div>
 
       <aside className="canvas-status" aria-live="polite">
         <span>{Math.round(zoom * 100)}%</span>
         <span aria-hidden="true">·</span>
-        <span>연결 단계 {completedSteps}/{mutableConnections.length}</span>
+        <span>좌클릭 드래그: 영역 선택</span>
         <span aria-hidden="true">·</span>
         <span>우클릭 드래그: 이동</span>
         <span aria-hidden="true">·</span>
@@ -679,6 +885,7 @@ export default function NodeCanvas() {
 function CanvasNodeView({
   node,
   position,
+  size,
   selected,
   connectedPortKeys,
   missingInputs,
@@ -687,9 +894,11 @@ function CanvasNodeView({
   connectionAction,
   onMove,
   onConnect,
+  onResize,
 }: {
   node: CanvasNode;
   position: Point;
+  size: Size;
   selected: boolean;
   connectedPortKeys: ReadonlySet<string>;
   missingInputs: readonly PortDefinition[];
@@ -702,12 +911,17 @@ function CanvasNodeView({
     portId: string,
     event: ReactPointerEvent,
   ) => void;
+  onResize: (
+    nodeId: string,
+    corner: ResizeCorner,
+    event: ReactPointerEvent,
+  ) => void;
 }) {
   const style: CSSProperties = {
     left: position.x,
     top: position.y,
-    width: node.size.width,
-    height: node.size.height,
+    width: size.width,
+    height: size.height,
   };
   const warning = missingInputs.length > 0;
 
@@ -750,8 +964,8 @@ function CanvasNodeView({
             className="processor-icon"
             src={node.icon}
             alt=""
-            width={260}
-            height={260}
+            width={256}
+            height={256}
             draggable={false}
             priority
             unoptimized
@@ -774,7 +988,6 @@ function CanvasNodeView({
               aria-label={`경고: ${missingInputs.map((port) => port.label).join(", ")} 입력이 필요합니다`}
               onPointerDown={(event) => event.stopPropagation()}
             >
-              <span className="warning-mark" aria-hidden="true">!</span>
               <span className="warning-tooltip" role="tooltip">
                 {missingInputs.map((port) => port.label).join(", ")} 입력이 필요합니다
               </span>
@@ -794,7 +1007,18 @@ function CanvasNodeView({
       )}
 
       {node.kind === "viewer" && (
-        <ViewerContent node={node} ready={viewerReady} />
+        <>
+          <ViewerContent node={node} ready={viewerReady} />
+          {RESIZE_CORNERS.map((corner) => (
+            <button
+              key={corner}
+              type="button"
+              className={`viewer-resize-handle is-${corner}`}
+              aria-label={`${node.ariaLabel} ${corner} 모서리에서 크기 조절`}
+              onPointerDown={(event) => onResize(node.id, corner, event)}
+            />
+          ))}
+        </>
       )}
 
       {node.ports.map((port) => {
@@ -831,10 +1055,8 @@ function ViewerContent({ node, ready }: { node: ViewerNode; ready: boolean }) {
         {node.viewerType === "model" ? "◇" : "⌗"}
       </span>
       <span className="viewer-caption">{node.caption}</span>
-      <span className={`viewer-state ${ready ? "is-ready" : ""}`} aria-hidden="true">
-        {ready ? "✓" : "!"}
-      </span>
-      <span className="viewer-message">
+      {!ready && <span className="viewer-alert" aria-hidden="true" />}
+      <span className={`viewer-message ${ready ? "is-ready" : ""}`}>
         {ready ? node.readyMessage : node.emptyMessage}
       </span>
     </div>
