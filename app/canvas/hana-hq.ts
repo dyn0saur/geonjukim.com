@@ -79,7 +79,7 @@ export const HANA_HQ_SCENARIO = defineScenario({
   id: "hana-hq",
   ariaLabel: "HANA HQ Grasshopper 스타일 프로젝트 캔버스",
   world: { width: 16400, height: 3600 },
-  initialFocus: { x: 0, y: 1800 },
+  initialFocus: { x: 0, y: 1250 },
   nodes: [
     {
       id: "hana-title",
