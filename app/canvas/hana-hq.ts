@@ -238,7 +238,7 @@ export const HANA_HQ_SCENARIO = defineScenario({
       id: "wood-panel-construct-branch",
       text: "Wood Panel",
       x: 5050,
-      y: 1347,
+      y: 797,
       ports: bidirectionalConnectorPorts,
       ariaLabel: "Wood Panel Construct 분기 연결 컴포넌트",
     }),
@@ -370,7 +370,7 @@ export const HANA_HQ_SCENARIO = defineScenario({
       icon: "/assets/hana-hq/icons/construct-wood-panel.png",
       ariaLabel: "Construct Wood Panel 3D 주요 컴포넌트",
       x: 8350,
-      y: 1320,
+      y: 720,
       rowCount: 5,
       ports: [
         { id: "wood-panel", side: "in", row: 0, label: "Wood Panel", required: true },
@@ -414,7 +414,7 @@ export const HANA_HQ_SCENARIO = defineScenario({
       readyMessage: "3D MODEL LINKED",
       readyWhen: ["construct-to-model-viewer"],
       ariaLabel: "비어 있는 3D Model 뷰어",
-      position: { x: 9700, y: 895 },
+      position: { x: 9700, y: 290 },
       size: { width: 1700, height: 1700 },
       ports: [
         { id: "in", side: "in", offset: 0.5 },
@@ -425,7 +425,7 @@ export const HANA_HQ_SCENARIO = defineScenario({
       id: "model-reference",
       text: "3D Model",
       x: 11650,
-      y: 1702,
+      y: 1097,
       ports: bidirectionalConnectorPorts,
     }),
     processor({
@@ -434,7 +434,7 @@ export const HANA_HQ_SCENARIO = defineScenario({
       icon: "/assets/hana-hq/icons/generate-2d-drawings.png",
       ariaLabel: "Generate 2D Drawings 주요 컴포넌트",
       x: 12500,
-      y: 1600,
+      y: 995,
       rowCount: 1,
       ports: [
         { id: "model", side: "in", row: 0, label: "3D Model", required: true },
@@ -450,7 +450,7 @@ export const HANA_HQ_SCENARIO = defineScenario({
       readyMessage: "2D DRAWING READY",
       readyWhen: ["model-reference-to-generate"],
       ariaLabel: "비어 있는 2D Drawing 이미지 뷰어",
-      position: { x: 14150, y: 845 },
+      position: { x: 14150, y: 240 },
       size: { width: 1800, height: 1800 },
       ports: [{ id: "in", side: "in", offset: 0.5 }],
     },

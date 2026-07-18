@@ -76,6 +76,7 @@
 - 활성 연결 상태와 유효 데이터 상태를 분리한다. 와이어는 존재할 수 있지만 무효 데이터를 전달할 수 있으며, 뷰어 준비 상태와 후류 경고는 유효 연결을 기준으로 계산한다.
 - 노드, 포트, 초기 연결, 허용 연결과 상태 조건은 프로젝트 시나리오 데이터로 선언하고 범용 캔버스 렌더러가 이를 표시한다.
 - Phase 2-1의 `Wood Panel` 한 출력은 Construct 경로와 Fabrication 경로의 두 연결 컴포넌트로 명시적으로 분기하며 각 와이어를 독립 연결로 선언한다.
+- Phase 2-1 기본 배치에서 Construct용 `Wood Panel` 분기는 주 연결 블록보다 위에 두고 `CONSTRUCT WOOD PANEL 3D`의 Wood Panel 입력과 같은 수평축에 정렬한다. Fabrication용 분기는 아래에 두어 Fabrication 입력으로 연결하며, Construct 본체와 후속 3D·2D 흐름은 Fabrication보다 위쪽 축에 배치한다.
 
 ## Accessibility and resilience
 
