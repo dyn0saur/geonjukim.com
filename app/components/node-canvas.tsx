@@ -27,6 +27,7 @@ type Guide = { x?: number; y?: number; kind?: "edge" | "port" };
 type ConnectionAction = "add" | "remove";
 type ResizeCorner = "north-west" | "north-east" | "south-west" | "south-east";
 type Fence = { start: Point; current: Point };
+type SeparationGuide = { anchorX: number; currentX: number; anchorY: number };
 type CanvasDocument = {
   positions: Positions;
   sizes: Sizes;
@@ -54,6 +55,16 @@ type Interaction =
       primaryNodeId: string;
       nodeIds: readonly string[];
       startClient: Point;
+      startPositions: Positions;
+      startDocument: CanvasDocument;
+    }
+  | {
+      type: "separate";
+      pointerId: number;
+      startClient: Point;
+      anchorX: number;
+      leftNodeIds: readonly string[];
+      rightNodeIds: readonly string[];
       startPositions: Positions;
       startDocument: CanvasDocument;
     }
@@ -333,6 +344,7 @@ export default function NodeCanvas() {
   const [mode, setMode] = useState<Interaction["type"]>("idle");
   const [guide, setGuide] = useState<Guide>({});
   const [fence, setFence] = useState<Fence | null>(null);
+  const [separation, setSeparation] = useState<SeparationGuide | null>(null);
   const [connectingFromPoint, setConnectingFromPoint] = useState<Point | null>(
     null,
   );
@@ -387,6 +399,7 @@ export default function NodeCanvas() {
       setMode("idle");
       setGuide({});
       setFence(null);
+      setSeparation(null);
       setConnectingFromPoint(null);
       setConnectingPoint(null);
       setTargetConnectionId(null);
@@ -469,6 +482,39 @@ export default function NodeCanvas() {
     } catch {
       // The browser may already have released this pointer.
     }
+  };
+
+  const beginSeparation = (event: ReactPointerEvent<HTMLElement>) => {
+    if (event.button !== 0 || !event.altKey) return;
+    event.preventDefault();
+    event.stopPropagation();
+
+    const anchor = screenToWorld(event.clientX, event.clientY);
+    const leftNodeIds: string[] = [];
+    const rightNodeIds: string[] = [];
+    for (const node of SCENARIO.nodes) {
+      const position = positions[node.id] ?? node.position;
+      const size = sizes[node.id] ?? node.size;
+      if (position.x + size.width <= anchor.x) {
+        leftNodeIds.push(node.id);
+      } else if (position.x >= anchor.x) {
+        rightNodeIds.push(node.id);
+      }
+    }
+
+    interactionRef.current = {
+      type: "separate",
+      pointerId: event.pointerId,
+      startClient: { x: event.clientX, y: event.clientY },
+      anchorX: anchor.x,
+      leftNodeIds,
+      rightNodeIds,
+      startPositions: positions,
+      startDocument: documentRef.current,
+    };
+    setSeparation({ anchorX: anchor.x, currentX: anchor.x, anchorY: anchor.y });
+    setMode("separate");
+    capturePointer(event.pointerId);
   };
 
   const beginMove = (nodeId: string, event: ReactPointerEvent) => {
@@ -646,6 +692,27 @@ export default function NodeCanvas() {
       return;
     }
 
+    if (interaction.type === "separate") {
+      const deltaX = (event.clientX - interaction.startClient.x) / scale;
+      const movingNodeIds =
+        deltaX >= 0 ? interaction.rightNodeIds : interaction.leftNodeIds;
+      const nextPositions = { ...interaction.startPositions };
+      for (const nodeId of movingNodeIds) {
+        const start = interaction.startPositions[nodeId];
+        nextPositions[nodeId] = { x: start.x + deltaX, y: start.y };
+      }
+      updateCanvasDocument((current) => ({
+        ...current,
+        positions: nextPositions,
+      }));
+      setSeparation((current) =>
+        current
+          ? { ...current, currentX: interaction.anchorX + deltaX }
+          : current,
+      );
+      return;
+    }
+
     if (interaction.type === "move") {
       const movingNode = nodesById.get(interaction.primaryNodeId);
       if (!movingNode) return;
@@ -750,7 +817,11 @@ export default function NodeCanvas() {
       setSelectedNodeIds(new Set());
     }
 
-    if (interaction.type === "move" || interaction.type === "resize") {
+    if (
+      interaction.type === "move" ||
+      interaction.type === "resize" ||
+      interaction.type === "separate"
+    ) {
       recordHistory(interaction.startDocument, documentRef.current);
     }
 
@@ -787,6 +858,7 @@ export default function NodeCanvas() {
     setMode("idle");
     setGuide({});
     setFence(null);
+    setSeparation(null);
     setConnectingFromPoint(null);
     setConnectingPoint(null);
     setTargetConnectionId(null);
@@ -847,6 +919,14 @@ export default function NodeCanvas() {
     to: portPoint(connection.to, positions, sizes, nodesById),
   }));
   const normalizedFence = fence ? normalizeFence(fence) : null;
+  const separationDirection =
+    separation && separation.currentX < separation.anchorX ? "left" : "right";
+  const separationLeft = separation
+    ? Math.min(separation.anchorX, separation.currentX)
+    : 0;
+  const separationWidth = separation
+    ? Math.abs(separation.currentX - separation.anchorX)
+    : 0;
 
   return (
     <main
@@ -855,6 +935,7 @@ export default function NodeCanvas() {
       style={gridStyle}
       role="application"
       aria-label={SCENARIO.ariaLabel}
+      onPointerDownCapture={beginSeparation}
       onPointerDown={handleCanvasPointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={finishInteraction}
@@ -1013,6 +1094,27 @@ export default function NodeCanvas() {
             aria-hidden="true"
           />
         )}
+
+        {separation && (
+          <div
+            className={`canvas-separation is-${separationDirection}`}
+            data-separation-direction={separationDirection}
+            style={{
+              left: separationLeft,
+              top: 0,
+              width: separationWidth,
+              height: SCENARIO.world.height,
+            }}
+            aria-hidden="true"
+          >
+            <span
+              className="canvas-separation-arrow"
+              style={{ top: separation.anchorY }}
+            >
+              {separationDirection === "right" ? "→" : "←"}
+            </span>
+          </div>
+        )}
       </div>
 
       <aside className="canvas-status" aria-live="polite">
@@ -1027,6 +1129,8 @@ export default function NodeCanvas() {
         <span>Ctrl+드래그: 연결 삭제</span>
         <span aria-hidden="true">·</span>
         <span>Ctrl+Z/Y: 실행 취소/다시 실행</span>
+        <span aria-hidden="true">·</span>
+        <span>Alt+좌클릭 드래그: 캔버스 확장</span>
       </aside>
     </main>
   );

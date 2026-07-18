@@ -73,6 +73,10 @@ button {
   cursor: nwse-resize;
 }
 
+.node-canvas.is-separate {
+  cursor: ew-resize;
+}
+
 .world {
   position: absolute;
   inset: 0 auto auto 0;
@@ -608,6 +612,33 @@ button {
   border: var(--world-css-pixel) dotted #1d2bb2;
   background: rgb(76 102 232 / 34%);
   pointer-events: none;
+}
+
+.canvas-separation {
+  position: absolute;
+  z-index: 32;
+  border-right: var(--world-css-pixel) dotted #232323;
+  border-left: var(--world-css-pixel) dotted #232323;
+  background: rgb(255 255 255 / 26%);
+  pointer-events: none;
+}
+
+.canvas-separation-arrow {
+  position: absolute;
+  left: 50%;
+  display: grid;
+  width: 100px;
+  height: 58px;
+  place-items: center;
+  border: var(--world-css-pixel) solid rgb(45 45 45 / 52%);
+  border-radius: 5px;
+  color: #242424;
+  background: rgb(255 255 255 / 82%);
+  box-shadow: 0 3px 7px rgb(0 0 0 / 14%);
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 48px;
+  line-height: 1;
+  transform: translate(-50%, -50%);
 }
 
 .canvas-status {
