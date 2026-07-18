@@ -533,6 +533,19 @@ export default function NodeCanvas() {
     const node = nodesById.get(nodeId);
     if (!node) return;
 
+    if (event.shiftKey) {
+      setSelectedNodeIds((current) => {
+        const next = new Set(current);
+        if (next.has(nodeId)) {
+          next.delete(nodeId);
+        } else {
+          next.add(nodeId);
+        }
+        return next;
+      });
+      return;
+    }
+
     const nodeIds = selectedNodeIds.has(nodeId)
       ? [...selectedNodeIds]
       : [nodeId];
