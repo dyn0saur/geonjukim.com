@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Node Canvas — Geonju Kim",
+  title: "HANA HQ — Geonju Kim",
   description:
-    "A Grasshopper-inspired interactive portfolio canvas prototype by Geonju Kim.",
+    "HANA HQ fabrication workflow on a Grasshopper-inspired interactive portfolio canvas by Geonju Kim.",
   icons: {
     icon: "/favicon.svg",
     shortcut: "/favicon.svg",

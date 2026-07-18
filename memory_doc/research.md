@@ -64,3 +64,33 @@ Phase 1은 전체 포트폴리오 제작이 아니라 핵심 인터랙션의 기
 - Sites 전용 배포 메타데이터, 저장소 연결, 환경 변수 및 런타임 바인딩은 핵심 애플리케이션과 분리한다.
 - 최종 호스팅 후보는 실제 트래픽, 3D 자산 용량, 캐시 요구, 비용, 사용자 지정 도메인, 분석 및 배포 운영 요구가 드러난 뒤 결정한다.
 - 프로토타이핑 기간에는 검증을 통과한 구현 수정마다 현재 비공개 ChatGPT Sites 배포를 갱신한다. 사용자가 로컬 전용을 요청하거나 게시 권한이 없는 경우에만 예외로 한다.
+
+## Phase 2-1 — HANA HQ project canvas
+
+- HANA HQ를 첫 실제 포트폴리오 시나리오로 좌에서 우로 배치한다. 실제 Three.js 또는 2D 도면 렌더링은 아직 포함하지 않으므로 Phase 3이 아니라 Phase 2의 첫 세부 단계로 분류한다.
+- 흐름은 제목 `HANA HQ` → `Ref. SRF` → `DECONSTRUCT REF. SURFACE` → `FABRICATION & CONSTRUCTION REQUIREMENTS` 및 `CONSTRUCT WOOD PANEL 3D` → `GENERATE 2D DRAWINGS` 순서다.
+- 캔버스 요소는 제목 Scribble, 모델/이미지 뷰어, 연결 컴포넌트, 텍스트·숫자 패널, 입출력 포트를 가진 주요 컴포넌트로 구분한다.
+- Deconstruct의 출력은 `Wood Panel`, `Wood Block`, `Corner Reveal`, `Base Board`, `T-Bar System`이며 Phase 2-1의 후속 상호작용은 `Wood Panel`만 대상으로 한다.
+- Fabrication 출력은 `Wood veneer application`, `Laminated timber fabrication followed by steam bending`, `20`, `200`, `6`, `2400` 패널을 거쳐 Construct 입력으로 전달한다.
+- Construct의 `3D Model`과 Generate의 `2D Drawing`은 후속 Three.js 및 이미지 연결을 위한 빈 뷰어 자리만 제공한다.
+- 주요 컴포넌트 이름은 Bifocals 플러그인처럼 컴포넌트 위 말풍선형 라벨로 항상 표시한다.
+- 컴포넌트 아이콘은 제공된 Grasshopper 스크린샷을 스타일 참조로 삼아 독자적인 PNG 자산으로 생성하고 프로젝트 안에 보관한다.
+
+### Confirmed Phase 2-1 decisions
+
+- Ref. SRF→Deconstruct, Wood Panel→Construct, Construct→3D viewer, 3D Model 연결 컴포넌트→Generate의 네 연결은 사용자가 완성하며 나머지 지정 연결은 초기 상태부터 존재한다.
+- Generate 출력은 2D 전용 이미지 뷰어에 연결한다.
+- 화면 표기는 `REQUIREMENTS`, `WOOD PANEL`, `Ref. SRF`처럼 교정된 영문 철자를 사용한다.
+- 생성 PNG 아이콘은 `DECONSTRUCT REF. SURFACE`, `FABRICATION & CONSTRUCTION REQUIREMENTS`, `CONSTRUCT WOOD PANEL 3D`, `GENERATE 2D DRAWINGS`의 네 주요 컴포넌트에만 사용한다. 연결 컴포넌트는 아이콘 없이 이름만 표시한다.
+- 최초 viewport는 제목과 초기 단계를 읽을 수 있게 시작하고 사용자가 우측으로 pan하여 전체 흐름을 탐색한다.
+- 제목 Scribble도 다른 노드처럼 클릭 선택과 드래그 이동이 가능하며, 선택 시 짙은 초록색 글자로 표시한다.
+- Phase 2-1부터 노드와 연결을 JSX에 개별 하드코딩하지 않고 프로젝트 시나리오 데이터와 범용 렌더러를 분리한다.
+
+### Phase 2-1 implementation result
+
+- `model.ts`의 검증된 공통 스키마, `hana-hq.ts`의 프로젝트 데이터, `node-canvas.tsx`의 범용 렌더러로 계층을 분리했다. 중복 노드·포트·연결, 잘못된 포트 방향, 하나의 입력에 대한 중복 연결은 시나리오 정의 시 오류로 처리한다.
+- 초기 고정 연결 20개와 사용자 완성 연결 4개를 데이터로 선언했다. 사용자는 Ref. SRF, Wood Panel, 3D viewer, Generate 2D 입력을 순서와 무관하게 연결하거나 Ctrl+드래그로 삭제할 수 있다.
+- 필수 입력 상태로 주요 컴포넌트의 경고를 도출하고, 3D/2D 뷰어는 관련 연결 완료 시 준비 placeholder로 전환한다.
+- 네 주요 컴포넌트에 독자적인 투명 PNG 아이콘을 적용했고 연결 컴포넌트는 이름만 표시한다.
+- 1920×1080 브라우저 QA에서 초기 좌→우 레이아웃, Scribble 선택·이동, 선택 와이어 그라데이션, 0/4→4/4 연결, 경고 해제와 뷰어 준비 전환을 확인했다.
+- 로컬 `vinext start`는 이 환경에서 HTML을 반환했지만 `/assets/*`를 404로 반환했다. Vite 개발 서버에서는 정적 자산과 전체 인터랙션이 정상이며 Sites 배포 후 자산 응답을 다시 확인해야 한다.

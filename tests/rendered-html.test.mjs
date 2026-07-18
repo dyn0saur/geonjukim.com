@@ -22,17 +22,27 @@ async function render() {
   );
 }
 
-test("server-renders the node canvas prototype", async () => {
+test("server-renders the HANA HQ project canvas", async () => {
   const response = await render();
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
 
   const html = await response.text();
-  assert.match(html, /<title>Node Canvas — Geonju Kim<\/title>/i);
-  assert.match(html, /Grasshopper 스타일 포트폴리오 인터랙션 프로토타입/);
-  assert.match(html, />5<\/span>/);
-  assert.match(html, />3<\/span>/);
-  assert.match(html, /A가 입력되지 않았습니다/);
+  assert.match(html, /<title>HANA HQ — Geonju Kim<\/title>/i);
+  assert.match(html, /HANA HQ Grasshopper 스타일 프로젝트 캔버스/);
+  assert.match(html, />HANA HQ<\/section>/);
+  assert.match(html, /DECONSTRUCT REF\. SURFACE/);
+  assert.match(html, /FABRICATION (?:&|&amp;) CONSTRUCTION REQUIREMENTS/);
+  assert.match(html, /CONSTRUCT WOOD PANEL 3D/);
+  assert.match(html, /GENERATE 2D DRAWINGS/);
+  assert.match(html, /Wood veneer application/);
+  assert.match(html, /Laminated timber fabrication followed by steam bending/);
+  assert.match(html, /AWAITING 3D MODEL/);
+  assert.match(html, /연결 단계[\s\S]{0,40}0[\s\S]{0,40}\/[\s\S]{0,40}4/);
   assert.match(html, /우클릭 드래그: 이동/);
+  assert.match(html, /deconstruct-ref-surface\.png/);
+  assert.match(html, /fabrication-requirements\.png/);
+  assert.match(html, /construct-wood-panel\.png/);
+  assert.match(html, /generate-2d-drawings\.png/);
   assert.doesNotMatch(html, /codex-preview|react-loading-skeleton/i);
 });
