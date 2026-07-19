@@ -99,8 +99,9 @@ const SNAP_SCREEN_DISTANCE = 9;
 const MIN_VIEWER_SIZE = 420;
 const BEZIER_X_RATIO = 0.65;
 const BEZIER_Y_RATIO = 0.9;
-const CONTENT_FADE_START_ZOOM = 1;
-const CONTENT_HIDDEN_ZOOM = 0.7;
+const CONTENT_FADE_START_ZOOM = 0.85;
+const CONTENT_HIDDEN_ZOOM = 0.6;
+const MIN_GRID_LINE_CSS_PX = 0.75;
 const HISTORY_LIMIT = 100;
 
 const INITIAL_POSITIONS = Object.fromEntries(
@@ -932,7 +933,7 @@ export default function NodeCanvas() {
   const gridStyle = {
     backgroundSize: `${GRID_WIDTH * scale}px ${GRID_HEIGHT * scale}px`,
     backgroundPosition: `${pan.x}px ${pan.y}px`,
-    "--grid-line": `${Math.max(0.15, scale)}px`,
+    "--grid-line": `${Math.max(MIN_GRID_LINE_CSS_PX, scale)}px`,
   } as CSSProperties;
 
   const connectionGeometry = activeConnections.map((connection) => ({
